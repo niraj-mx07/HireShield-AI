@@ -227,4 +227,10 @@ HireShield-AI/
 
 ## Team
 
-HireShield-AI is being developed as an engineering project focused on trustworthy opportunity screening. Add team members, roles, and contact details here as the implementation team is finalized.
+| Member | Role |
+|---|---|
+| Dr. Nitin Girdhar Shinde | Project Guide |
+| Nihar Patil | Project Lead / Front-end Development |
+| Team Member Name | ML and NLP Engineering |
+| Team Member Name | Frontend Development and UI/UX |
+| Team Member Name | Research, Testing, and Documentation |
