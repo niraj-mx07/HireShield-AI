@@ -231,5 +231,6 @@ HireShield-AI/
 |---|---|
 | Nihar Patil | Project Lead / Front-end Development |
 | Niraj Mahajan| ML and NLP Engineering |
+| Vansh Ahire | Data Collection, Testing, and Documentation |
 | Team Member Name | Frontend Development and UI/UX |
-| Team Member Name | Research, Testing, and Documentation |
+
