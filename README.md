@@ -147,7 +147,7 @@ The commands below define the expected development workflow once the application
 ### 1. Clone
 
 ```bash
-git clone <repository-url>
+git clone https://github.com/niraj-mx07/HireShield-AI.git
 cd HireShield-AI
 ```
 
