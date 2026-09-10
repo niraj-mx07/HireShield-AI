@@ -1,0 +1,60 @@
+# HireShield AI — Backend Requirements
+# Python 3.9+
+
+# --- Core / Data Handling ---
+pandas==2.2.2
+numpy==1.26.4
+
+# --- Web Framework / API ---
+fastapi==0.111.0
+uvicorn[standard]==0.30.1
+pydantic==2.7.4
+python-dotenv==1.0.1
+
+# --- Database ---
+pymongo==4.7.3
+motor==3.4.0              # async MongoDB driver for FastAPI
+
+# --- Auth ---
+python-jose[cryptography]==3.3.0
+passlib[bcrypt]==1.7.4
+
+# --- NLP / Text Processing ---
+nltk==3.8.1
+spacy==3.7.5
+scikit-learn==1.5.0        # TF-IDF, train/test split, metrics
+sentence-transformers==3.0.1  # MiniLM / DistilBERT embeddings
+transformers==4.42.3
+torch==2.3.1
+
+# --- Modeling ---
+xgboost==2.0.3
+lightgbm==4.4.0
+imbalanced-learn==0.12.3   # SMOTE / ADASYN for class imbalance
+
+# --- Explainability ---
+shap==0.45.1
+
+# --- Image Pipeline (Certificate Verification) ---
+opencv-python==4.10.0.84
+Pillow==10.3.0
+torchvision==0.18.1        # MobileNet / ResNet18 architectures
+
+# --- Web Scraping ---
+beautifulsoup4==4.12.3
+selenium==4.21.0
+requests==2.32.3
+
+# --- Model Persistence ---
+joblib==1.4.2
+
+# --- Evaluation / Visualization ---
+matplotlib==3.9.0
+seaborn==0.13.2
+
+# --- Testing ---
+pytest==8.2.2
+httpx==0.27.0              # for testing FastAPI endpoints
+
+# --- Dev Utilities ---
+python-multipart==0.0.9    # required by FastAPI for file uploads (certificate images, CSV batch)
