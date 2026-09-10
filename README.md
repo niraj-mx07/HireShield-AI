@@ -229,8 +229,7 @@ HireShield-AI/
 
 | Member | Role |
 |---|---|
-| Dr. Nitin Girdhar Shinde | Project Guide |
-| Nihar Patil | Project Lead / Front-end Development |
+| Nihar Ganesh Patil | Project Lead / Front-end Development |
 | Team Member Name | ML and NLP Engineering |
 | Team Member Name | Frontend Development and UI/UX |
 | Team Member Name | Research, Testing, and Documentation |
