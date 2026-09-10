@@ -229,7 +229,7 @@ HireShield-AI/
 
 | Member | Role |
 |---|---|
-| Nihar Ganesh Patil | Project Lead / Front-end Development |
-| Team Member Name | ML and NLP Engineering |
+| Nihar Patil | Project Lead / Front-end Development |
+| Niraj Mahajan| ML and NLP Engineering |
 | Team Member Name | Frontend Development and UI/UX |
 | Team Member Name | Research, Testing, and Documentation |
