@@ -1,75 +1,47 @@
 /** @type {import('tailwindcss').Config} */
-module.exports = {
+export default {
   content: [
-    './index.html',
-    './src/**/*.{js,jsx,ts,tsx}',
-    './components/**/*.{js,jsx,ts,tsx}',
+    "./index.html",
+    "./src/**/*.{js,ts,jsx,tsx}",
   ],
   theme: {
     extend: {
       colors: {
-        brand: {
-          forest: '#4A5D4E',
-          primary: '#1E5631',
-          mint: '#E8F0E3',
-        },
-        risk: {
-          low: '#1E5631',
-          moderate: '#F5A623',
-          high: '#D64545',
-        },
-        neutral: {
-          text: '#1A1A1A',
-          muted: '#6B7280',
-          border: '#E5E7EB',
-          soft: '#F8FAF8',
-        },
-        surface: {
-          DEFAULT: '#FFFFFF',
-          mint: '#E8F0E3',
-          gradient: '#FFFFFF',
-        },
-        accent: {
-          pink: '#E85D8A',
-          purple: '#7C6FE0',
-          teal: '#2DB89A',
-          orange: '#F5A623',
-          blue: '#3B82F6',
-        },
+        primary: '#003e1c',
+        'primary-container': '#1e5631',
+        secondary: '#506354',
+        'secondary-container': '#d0e5d2',
+        canvas: '#fcf9f8',
+        surface: '#ffffff',
+        'surface-2': '#f6f3f2',
+        ink: '#1c1b1b',
+        'ink-muted': '#414941',
+        'ink-subtle': '#717970',
+        'risk-low': '#1e5631',
+        'risk-low-bg': '#d0e5d2',
+        'risk-moderate': '#b45309',
+        'risk-moderate-bg': '#fef3c7',
+        'risk-high': '#ba1a1a',
+        'risk-high-bg': '#ffdad6',
+        'accent-recruiter': '#5521b5',
+        'accent-recruiter-bg': '#edebfe',
+        'accent-document': '#9d174d',
+        'accent-document-bg': '#fce7f3',
+        'accent-url': '#0369a1',
+        'accent-url-bg': '#e0f2fe',
       },
       fontFamily: {
-        display: ['"Playfair Display"', 'Georgia', 'serif'],
-        sans: ['Inter', 'ui-sans-serif', 'system-ui', '-apple-system', 'BlinkMacSystemFont', '"Segoe UI"', 'sans-serif'],
+        serif: ['Playfair Display', 'Georgia', 'serif'],
+        sans: ['Plus Jakarta Sans', 'sans-serif'],
       },
       borderRadius: {
-        card: '1.125rem',
-        'card-lg': '1.25rem',
+        '2xl': '16px',
       },
       boxShadow: {
-        card: '0 4px 18px rgba(26, 26, 26, 0.07)',
-        'card-hover': '0 12px 28px rgba(30, 86, 49, 0.12)',
-        float: '0 18px 42px rgba(26, 26, 26, 0.14)',
-      },
-      backgroundImage: {
-        'mint-gradient': 'linear-gradient(135deg, #E8F0E3 0%, #FFFFFF 72%)',
-      },
-      maxWidth: {
-        content: '72rem',
-        dashboard: '90rem',
-      },
-      spacing: {
-        18: '4.5rem',
-        22: '5.5rem',
-        30: '7.5rem',
-      },
-      screens: {
-        xs: '480px',
-        '3xl': '1800px',
-      },
-      transitionTimingFunction: {
-        'out-soft': 'cubic-bezier(0.16, 1, 0.3, 1)',
-      },
+        'subtle': '0 4px 20px -2px rgba(28, 27, 27, 0.05), 0 2px 6px -1px rgba(28, 27, 27, 0.03)',
+        'floating': '0 12px 32px -4px rgba(0, 62, 28, 0.08), 0 4px 12px -2px rgba(28, 27, 27, 0.04)',
+      }
     },
   },
   plugins: [],
-};
+}
