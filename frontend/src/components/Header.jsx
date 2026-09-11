@@ -50,8 +50,8 @@ export const Header = () => {
               to={item.path}
               className={`px-4 py-2 rounded-full text-xs font-semibold transition-all ${
                 isActive(item.path)
-                  ? 'bg-surface text-primary shadow-subtle'
-                  : 'text-ink-muted hover:text-ink hover:bg-surface/50'
+                  ? 'bg-primary text-surface'
+                  : 'text-ink-muted hover:text-ink hover:bg-surface/80'
               }`}
             >
               {item.name}

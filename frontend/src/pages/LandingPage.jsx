@@ -58,7 +58,7 @@ export const LandingPage = () => {
             </p>
 
             {/* Pill Search Input Bar */}
-            <form onSubmit={handleHeroSubmit} className="relative max-w-2xl">
+            {/* <form onSubmit={handleHeroSubmit} className="relative max-w-2xl">
               <div className="flex flex-col sm:flex-row items-center bg-surface p-2 rounded-3xl sm:rounded-full shadow-floating border border-ink/10 gap-2">
                 <div className="flex items-center gap-3 px-4 w-full sm:w-auto flex-1">
                   <Search className="w-5 h-5 text-ink-subtle flex-shrink-0" />
@@ -78,7 +78,17 @@ export const LandingPage = () => {
                   <ArrowRight className="w-4 h-4" />
                 </button>
               </div>
-            </form>
+            </form> */}
+
+            <div className="pt-2">
+            <Link
+              to="/analyze"
+              className="inline-flex items-center gap-2 px-8 py-3.5 rounded-full bg-primary text-surface text-xs font-bold hover:bg-primary-container shadow-subtle transition-all"
+            >
+              <span>Scan Opportunity Now</span>
+              <ArrowRight className="w-4 h-4 text-surface" />
+            </Link>
+          </div>
 
             {/* Quick Demo Loader Hints */}
             <div className="flex items-center gap-3 text-xs text-ink-subtle pt-1">

@@ -114,8 +114,8 @@ export const AnalyzePage = () => {
                 onClick={() => setActiveTab(tab.id)}
                 className={`flex items-center gap-2 px-5 py-3 rounded-2xl text-xs font-semibold whitespace-nowrap transition-all ${
                   isCurrent
-                    ? 'bg-surface text-primary shadow-subtle'
-                    : 'text-ink-muted hover:text-ink hover:bg-surface/50'
+                    ? 'bg-primary text-surface'
+                    : 'text-ink-muted hover:text-ink hover:bg-surface/80'
                 }`}
               >
                 <Icon className="w-4 h-4" />
