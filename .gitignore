@@ -1,1 +1,13 @@
+# macOS System Files
 .DS_Store
+
+# Frontend
+node_modules/
+frontend/node_modules/
+frontend/dist/
+
+# Python / Virtualenv
+__pycache__/
+*.pyc
+venv/
+.env

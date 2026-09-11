@@ -1,0 +1,5 @@
+# Frontend dependencies & build outputs
+node_modules
+dist
+.DS_Store
+*.log
