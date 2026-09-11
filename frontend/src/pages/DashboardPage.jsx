@@ -1,14 +1,17 @@
 import React from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { ShieldCheck, ShieldAlert, CheckCircle2, Clock, Sparkles, PlusCircle, ArrowRight, Lock } from 'lucide-react';
+import { ShieldCheck, ShieldAlert, CheckCircle2, AlertCircle, Clock, Sparkles, PlusCircle, ArrowRight, Lock } from 'lucide-react';
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, Legend, CartesianGrid } from 'recharts';
 import { useAuth } from '../context/AuthContext';
 import { StatCard } from '../components/StatCard';
-import { mockDashboardStats, mockWeeklyChartData, mockHistoryList } from '../data/mockData';
+import { mockWeeklyChartData, mockHistoryList, getScanCounts } from '../data/mockData';
 
 export const DashboardPage = () => {
   const { isLoggedIn, toggleAuth, loadReport } = useAuth();
   const navigate = useNavigate();
+
+  // Compute live scan counts from mockHistoryList
+  const counts = getScanCounts(mockHistoryList);
 
   // Locked Guest Preview State if not logged in
   if (!isLoggedIn) {
@@ -38,7 +41,6 @@ export const DashboardPage = () => {
   }
 
   // Authenticated State View
-  const stats = mockDashboardStats;
   const recentThree = mockHistoryList.slice(0, 3);
 
   const handleRowClick = (item) => {
@@ -73,37 +75,42 @@ export const DashboardPage = () => {
         </Link>
       </div>
 
-      {/* StatCards Row */}
+      {/* StatCards Row - Fully Synchronized with getScanCounts */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
         <StatCard
           label="Total Scans"
-          value={stats.totalChecks}
+          value={counts.total}
           icon={ShieldCheck}
           trend="+3 this week"
           badgeColor="bg-secondary-container text-primary"
+          valueColor="text-ink"
         />
         <StatCard
           label="High Risk Caught"
-          value={stats.highRiskCaught}
+          value={counts.highRisk}
           icon={ShieldAlert}
           trend="Protected from loss"
           badgeColor="bg-risk-high-bg text-risk-high"
+          valueColor="text-risk-high"
         />
         <StatCard
-          label="Safe Opportunities"
-          value={stats.safeFound}
+          label="Moderate Caution"
+          value={counts.moderate}
+          icon={AlertCircle}
+          trend="Review recommended"
+          badgeColor="bg-risk-moderate-bg text-risk-moderate"
+          valueColor="text-risk-moderate"
+        />
+        <StatCard
+          label="Verified Safe"
+          value={counts.verifiedSafe}
           icon={CheckCircle2}
           trend="100% verified safe"
           badgeColor="bg-risk-low-bg text-risk-low"
-        />
-        <StatCard
-          label="Last Scan"
-          value={stats.lastCheck}
-          icon={Clock}
-          trend="Senior Data Specialist"
-          badgeColor="bg-surface-2 text-ink-muted"
+          valueColor="text-risk-low"
         />
       </div>
+
 
       {/* Recharts Chart Section */}
       <div className="bg-surface rounded-3xl p-6 sm:p-8 shadow-floating border border-ink/5 space-y-6">

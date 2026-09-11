@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Search, Filter, Lock, ArrowRight, ShieldAlert, CheckCircle2, AlertTriangle, Sparkles } from 'lucide-react';
+import { Search, Filter, Lock, ArrowRight, ShieldAlert, CheckCircle2, AlertTriangle, AlertCircle, ShieldCheck, Sparkles } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
-import { mockHistoryList } from '../data/mockData';
+import { mockHistoryList, getScanCounts } from '../data/mockData';
+import { StatCard } from '../components/StatCard';
 
 export const HistoryPage = () => {
   const { isLoggedIn, toggleAuth, loadReport } = useAuth();
@@ -10,6 +11,9 @@ export const HistoryPage = () => {
 
   const [searchQuery, setSearchQuery] = useState('');
   const [riskFilter, setRiskFilter] = useState('all');
+
+  // Compute unfiltered totals for top summary cards and filter pill badges
+  const counts = getScanCounts(mockHistoryList);
 
   // Locked Guest Preview State if not logged in
   if (!isLoggedIn) {
@@ -70,6 +74,38 @@ export const HistoryPage = () => {
         </p>
       </div>
 
+      {/* Dynamic Scan Count Summary Cards */}
+      {/* <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+        <StatCard
+          label="Total Scans"
+          value={counts.total}
+          icon={ShieldCheck}
+          badgeColor="bg-secondary-container text-primary"
+          valueColor="text-ink"
+        />
+        <StatCard
+          label="High Risk"
+          value={counts.highRisk}
+          icon={ShieldAlert}
+          badgeColor="bg-risk-high-bg text-risk-high"
+          valueColor="text-risk-high"
+        />
+        <StatCard
+          label="Moderate"
+          value={counts.moderate}
+          icon={AlertCircle}
+          badgeColor="bg-risk-moderate-bg text-risk-moderate"
+          valueColor="text-risk-moderate"
+        />
+        <StatCard
+          label="Verified Safe"
+          value={counts.verifiedSafe}
+          icon={CheckCircle2}
+          badgeColor="bg-risk-low-bg text-risk-low"
+          valueColor="text-risk-low"
+        />
+      </div> */}
+
       {/* Filter & Search Bar */}
       <div className="bg-surface p-4 rounded-3xl shadow-subtle border border-ink/5 flex flex-col sm:flex-row items-center justify-between gap-4">
         
@@ -85,14 +121,14 @@ export const HistoryPage = () => {
           />
         </div>
 
-        {/* Filter Pills */}
+        {/* Filter Pills with Live Counts */}
         <div className="flex items-center gap-1.5 w-full sm:w-auto overflow-x-auto scrollbar-none">
           <span className="text-xs font-semibold text-ink-subtle mr-1 hidden sm:inline">Filter:</span>
           {[
-            { id: 'all', label: 'All Scans' },
-            { id: 'high', label: 'High Risk' },
-            { id: 'moderate', label: 'Moderate' },
-            { id: 'low', label: 'Verified Safe' },
+            { id: 'all', label: `All Scans (${counts.total})` },
+            { id: 'high', label: `High Risk (${counts.highRisk})` },
+            { id: 'moderate', label: `Moderate (${counts.moderate})` },
+            { id: 'low', label: `Verified Safe (${counts.verifiedSafe})` },
           ].map((filter) => (
             <button
               key={filter.id}
@@ -109,6 +145,7 @@ export const HistoryPage = () => {
         </div>
 
       </div>
+
 
       {/* History Table / List */}
       <div className="bg-surface rounded-3xl shadow-floating border border-ink/5 overflow-hidden">

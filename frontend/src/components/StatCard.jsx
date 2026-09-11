@@ -4,8 +4,9 @@ export const StatCard = ({
   label = 'Total Checks',
   value = '14',
   icon: Icon,
-  trend = '+3 this week',
-  badgeColor = 'bg-secondary-container text-primary'
+  trend,
+  badgeColor = 'bg-secondary-container text-primary',
+  valueColor = 'text-ink'
 }) => {
   return (
     <div className="bg-surface rounded-2xl p-6 shadow-subtle border border-ink/5 flex items-center justify-between">
@@ -13,7 +14,7 @@ export const StatCard = ({
         <p className="text-xs font-semibold uppercase tracking-wider text-ink-subtle mb-1">
           {label}
         </p>
-        <h3 className="font-serif text-3xl font-semibold text-ink">
+        <h3 className={`font-serif text-3xl font-semibold ${valueColor}`}>
           {value}
         </h3>
         {trend && (
@@ -31,3 +32,4 @@ export const StatCard = ({
     </div>
   );
 };
+

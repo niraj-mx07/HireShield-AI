@@ -410,3 +410,29 @@ export const mockWeeklyChartData = [
   { week: "Aug 29", highRisk: 1, moderate: 1, safe: 1 },
   { week: "Sep 05", highRisk: 2, moderate: 0, safe: 3 }
 ];
+
+export const getScanCounts = (analyses = mockHistoryList) => {
+  const list = Array.isArray(analyses) ? analyses : [];
+  let highRisk = 0;
+  let moderate = 0;
+  let verifiedSafe = 0;
+
+  list.forEach((item) => {
+    const level = item.riskLevel || (item.score >= 61 ? 'high' : item.score >= 31 ? 'moderate' : 'low');
+    if (level === 'high') {
+      highRisk++;
+    } else if (level === 'moderate') {
+      moderate++;
+    } else {
+      verifiedSafe++;
+    }
+  });
+
+  return {
+    total: list.length,
+    highRisk,
+    moderate,
+    verifiedSafe
+  };
+};
+
