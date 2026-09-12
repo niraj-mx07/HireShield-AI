@@ -131,14 +131,21 @@ export const LandingPage = () => {
             </div>
           </div>
 
-          {/* Right Column: Floating Overlapping Result Cards Visual */}
+          {/* Right Column: Floating Result Cards Visual */}
           <div className="lg:col-span-5 relative flex justify-center py-6">
-            <div className="relative w-full max-w-md">
+            <div className="relative w-full max-w-md flex flex-col gap-6">
               
-              {/* Back Card: High Risk (Red) */}
-              <div className="bg-surface rounded-2xl p-6 shadow-floating border border-risk-high/20 transform translate-x-2 -translate-y-4 hover:translate-y-0 transition-transform duration-500">
+              {/* Top Card: High Risk (Red) - Animated Float */}
+              <div
+                onClick={() => {
+                  loadReport(mockAnalysisHighRisk);
+                  navigate('/analyze/result');
+                }}
+                className="bg-surface rounded-2xl p-6 shadow-floating border border-risk-high/30 animate-float-slow cursor-pointer hover:scale-[1.03] hover:z-20 transition-all duration-300 group"
+                title="Click to view full High-Risk Report"
+              >
                 <div className="flex items-center justify-between mb-3">
-                  <span className="text-xs font-semibold text-ink-muted">Apex Global Solutions</span>
+                  <span className="text-xs font-semibold text-ink-muted group-hover:text-primary transition-colors">Apex Global Solutions</span>
                   <span className="px-3 py-1 rounded-full bg-risk-high-bg text-risk-high text-xs font-bold uppercase tracking-wider">
                     Verdict: DON'T APPLY
                   </span>
@@ -153,10 +160,17 @@ export const LandingPage = () => {
                 </div>
               </div>
 
-              {/* Front Card: Low Risk (Green) - Overlapping */}
-              <div className="bg-surface rounded-2xl p-6 shadow-floating border border-risk-low/20 transform -translate-x-3 translate-y-6 hover:translate-y-2 transition-transform duration-500 relative z-10">
+              {/* Bottom Card: Low Risk (Green) - Staggered Float Reverse */}
+              <div
+                onClick={() => {
+                  loadReport(mockAnalysisLowRisk);
+                  navigate('/analyze/result');
+                }}
+                className="bg-surface rounded-2xl p-6 shadow-floating border border-risk-low/30 animate-float-reverse cursor-pointer hover:scale-[1.03] transition-all duration-300 relative z-10 ml-4 sm:ml-8 group"
+                title="Click to view full Low-Risk Verified Report"
+              >
                 <div className="flex items-center justify-between mb-3">
-                  <span className="text-xs font-semibold text-ink-muted">Stripe, Inc.</span>
+                  <span className="text-xs font-semibold text-ink-muted group-hover:text-primary transition-colors">Stripe, Inc.</span>
                   <span className="px-3 py-1 rounded-full bg-risk-low-bg text-risk-low text-xs font-bold uppercase tracking-wider">
                     Verdict: APPLY
                   </span>
@@ -171,10 +185,12 @@ export const LandingPage = () => {
                 </div>
               </div>
 
+
               {/* Subtle background glow circle */}
               <div className="absolute -inset-4 bg-primary/5 rounded-full blur-3xl -z-10" />
             </div>
           </div>
+
         </div>
       </section>
 

@@ -14,7 +14,6 @@
   }
 }
 
-/* Custom subtle animations */
 @keyframes pulseRing {
   0% {
     transform: scale(0.95);
@@ -33,6 +32,34 @@
 .animate-pulse-ring {
   animation: pulseRing 3s cubic-bezier(0.4, 0, 0.6, 1) infinite;
 }
+
+/* Floating card animations for landing hero */
+@keyframes floatSlow {
+  0%, 100% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(-12px);
+  }
+}
+
+@keyframes floatReverse {
+  0%, 100% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(14px);
+  }
+}
+
+.animate-float-slow {
+  animation: floatSlow 5s ease-in-out infinite;
+}
+
+.animate-float-reverse {
+  animation: floatReverse 6s ease-in-out infinite;
+}
+
 
 /* Smooth transition defaults */
 * {
