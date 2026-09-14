@@ -11,6 +11,7 @@ __pycache__/
 *.pyc
 venv/
 .env
+.pytest_cache/
 
 # ML — raw data and model artifacts (keep code + small metrics files)
 ml/data/raw/

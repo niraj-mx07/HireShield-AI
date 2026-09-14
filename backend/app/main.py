@@ -17,6 +17,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.api.routes import router as assessment_router
 from app.config import get_settings
 from app.database import connect, disconnect
+from app.services.model_loader import load_job_content_model
 
 # ---------------------------------------------------------------------------
 # Logging
@@ -35,10 +36,11 @@ logger = logging.getLogger(__name__)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Manage application lifecycle: connect to MongoDB on startup, close on shutdown."""
-    logger.info("Connecting to MongoDB at %s …", settings.database_url)
+    """Manage application lifecycle: connect to MongoDB and load models on startup."""
+    logger.info("Connecting to MongoDB at %s ...", settings.database_url)
     await connect()
-    logger.info("MongoDB connected — database: %s", settings.database_name)
+    logger.info("MongoDB connected -- database: %s", settings.database_name)
+    load_job_content_model()
     yield
     logger.info("Shutting down — closing MongoDB connection …")
     await disconnect()
