@@ -4,10 +4,12 @@ Steps:
     1. Load ``ml/data/raw/fake_job_postings.csv``.
     2. Combine text columns (title, description, requirements, company_profile,
        benefits) into a single ``combined_text`` feature.
-    3. Handle missing values (fill with empty string for text, drop rows where
-       the label is missing).
-    4. Stratified train / test split (80/20) preserving class distribution.
-    5. Save processed splits to ``ml/data/processed/``.
+    3. Drop exact duplicate postings based on ``combined_text``.
+    4. Detect and drop near-duplicate postings (normalized alphanumeric text,
+       ignoring case, punctuation, and whitespace differences).
+    5. Handle missing values and drop empty text rows.
+    6. Stratified train / test split (80/20) preserving class distribution.
+    7. Save processed splits to ``ml/data/processed/``.
 
 Usage::
 
@@ -16,6 +18,7 @@ Usage::
 
 from __future__ import annotations
 
+import re
 import sys
 from pathlib import Path
 
@@ -62,6 +65,43 @@ def combine_text_columns(df: pd.DataFrame) -> pd.DataFrame:
             df[col] = df[col].fillna("")
 
     df["combined_text"] = df[TEXT_COLUMNS].agg(" ".join, axis=1).str.strip()
+    return df
+
+
+def deduplicate(df: pd.DataFrame) -> pd.DataFrame:
+    """Remove exact and near-duplicate postings before train/test splitting.
+
+    Duplicate postings across train and test sets create artificial feature
+    leakage where the model memorizes repeated text snippets.
+
+    Returns:
+        Deduplicated DataFrame.
+    """
+    initial_count = len(df)
+
+    # 1. Exact duplicates on combined_text
+    df = df.drop_duplicates(subset=["combined_text"]).copy()
+    exact_removed = initial_count - len(df)
+    print(f"[INFO] Exact duplicates removed: {exact_removed:,}")
+
+    # 2. Near-duplicates via normalized alphanumeric representation
+    def _normalize(text: str) -> str:
+        text = text.lower()
+        text = re.sub(r"[^a-z0-9\s]", " ", text)
+        return " ".join(text.split())
+
+    df["_norm_text"] = df["combined_text"].apply(_normalize)
+    before_near = len(df)
+    df = df.drop_duplicates(subset=["_norm_text"]).copy()
+    near_removed = before_near - len(df)
+    print(f"[INFO] Near-duplicates removed (normalized text): {near_removed:,}")
+
+    df = df.drop(columns=["_norm_text"])
+    total_removed = exact_removed + near_removed
+    print(
+        f"[OK]   Deduplication complete: removed {total_removed:,} duplicate/near-duplicate rows "
+        f"({len(df):,} remaining)"
+    )
     return df
 
 
@@ -112,6 +152,7 @@ def main() -> None:
     """Run the full preprocessing pipeline."""
     df = load_raw()
     df = combine_text_columns(df)
+    df = deduplicate(df)
     df = clean(df)
     split_and_save(df)
     print("\n[OK] Preprocessing complete.")
