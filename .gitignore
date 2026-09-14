@@ -11,3 +11,10 @@ __pycache__/
 *.pyc
 venv/
 .env
+
+# ML — raw data and model artifacts (keep code + small metrics files)
+ml/data/raw/
+ml/data/processed/
+ml/artifacts/*.joblib
+ml/artifacts/*.pkl
+ml/artifacts/*.bin
