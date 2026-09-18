@@ -70,14 +70,16 @@ class RiskCategory(str, Enum):
 class AssessmentRequest(BaseModel):
     """Input payload for creating a new assessment.
 
-    At least one of ``url``, ``description``, ``company_name``, or a document
-    upload (handled via multipart) must be provided.
+    At least one of ``url``, ``description``, ``company_name``, ``recruiter_email``,
+    ``message``, or a document upload (handled via multipart) must be provided.
     """
     url: Optional[str] = Field(None, description="Job/internship listing URL")
     description: Optional[str] = Field(None, description="Pasted job description text")
     company_name: Optional[str] = Field(None, description="Company or organisation name")
     recruiter_email: Optional[str] = Field(None, description="Recruiter email address")
     recruiter_name: Optional[str] = Field(None, description="Recruiter name")
+    recruiter_phone: Optional[str] = Field(None, description="Recruiter phone number or WhatsApp handle")
+    message: Optional[str] = Field(None, description="Recruiter email body, WhatsApp, or Telegram message")
     consent_for_external_lookups: bool = Field(
         False,
         description=(
@@ -143,10 +145,8 @@ class AssessmentResponse(BaseModel):
     )
     category_scores: List[CategoryScore] = Field(default_factory=list)
     risk_factors: List[RiskFactor] = Field(default_factory=list)
+    active_inputs: List[str] = Field(default_factory=list, description="Inputs supplied by the user")
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
-
-    class Config:
-        json_encoders = {datetime: lambda v: v.isoformat()}
 
 
 # ---------------------------------------------------------------------------
@@ -172,5 +172,6 @@ class AssessmentRecord(BaseModel):
     confidence: Optional[float] = None
     category_scores: List[CategoryScore] = Field(default_factory=list)
     risk_factors: List[RiskFactor] = Field(default_factory=list)
+    active_inputs: List[str] = Field(default_factory=list)
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))

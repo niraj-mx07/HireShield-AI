@@ -1,50 +1,50 @@
-# Dataset: Real or Fake Job Posting
+# Datasets & Sources: Job Scam Detection
 
-## Source
+HireShield-AI combines multiple datasets covering global postings, Indian job consultancy scams, and fake contract/internship offers.
 
-**Kaggle:** [Real or Fake — Fake Job Posting Prediction](https://www.kaggle.com/datasets/shivamb/real-or-fake-fake-jobposting-prediction)
+## Sources
 
-**Author:** Shivam Bansal
+### 1. Kaggle — Real or Fake Job Posting Prediction
+- **Author / Link:** [Shivam Bansal](https://www.kaggle.com/datasets/shivamb/real-or-fake-fake-jobposting-prediction)
+- **Rows:** ~17,880 postings
+- **License:** CC0 (Public Domain)
+- **Scope:** Global fake job postings across industries.
 
-## Description
+### 2. Kaggle — Indian Job Fraud Dataset
+- **Author / Link:** [Adit Sawhney](https://www.kaggle.com/datasets/aditsawhney/indian-job-fraud-dataset)
+- **File:** `synthetic_indian_jobs.csv` (~752 rows)
+- **License:** CC0-1.0
+- **Scope:** Real-world Indian hiring scams (security deposits, registration charges, WhatsApp contacts, fake MNC interviews).
 
-~17,880 job postings with 17 feature columns and a binary `fraudulent` label
-(0 = real, 1 = fraudulent). The dataset was assembled to support research on
-job-scam detection.
+### 3. Kaggle — Detecting Fake Job Postings and Internship Scams
+- **Author / Link:** [Sohaib Dev](https://www.kaggle.com/datasets/sohaibdevv/detecting-fake-job-postings-and-internship-scams)
+- **File:** `job_contract_scam_dataset.csv` (~1,000 rows)
+- **License:** Apache-2.0
+- **Scope:** Fake internship contracts, equipment shipping scams, and withholding bond agreements.
 
-## Known characteristics
+### 4. Curated India Scam Signatures
+- **File:** `india_job_scams.json`
+
+## Combined Statistics
 
 | Property | Value |
 |---|---|
-| Total rows | ~17,880 |
-| Fraudulent (label=1) | ~866 (~4.8 %) |
-| Real (label=0) | ~17,014 (~95.2 %) |
-| Class imbalance ratio | ~20:1 |
-
-The dataset is **heavily imbalanced** — accuracy alone is a misleading metric.
-Evaluation must use precision, recall, and F1 (especially for the minority
-fraudulent class).
-
-## Licensing
-
-The dataset is published on Kaggle under the
-[CC0: Public Domain](https://creativecommons.org/publicdomain/zero/1.0/) license.
-It may be used for any purpose without restriction.
-
-## Feature leakage notes
-
-- No column trivially encodes the label (confirmed by the validation script).
-- The `fraudulent` column is the only target — all other columns are
-  legitimate input features.
-- Some text fields (e.g., `company_profile`) have high missing rates; the
-  *absence* of a company profile correlates with fraud but is a legitimate
-  signal, not leakage.
+| Total raw entries across sources | ~19,650 |
+| After deduplication (exact + near-duplicate) | ~16,827 unique postings |
+| Train set (80%) | 13,461 postings (6.5% fraud) |
+| Test set (20%) | 3,366 postings (6.5% fraud) |
 
 ## File layout
 
 ```
 ml/data/
 ├── raw/
-│   └── fake_job_postings.csv   ← downloaded or manually placed here
-└── README.md                   ← this file
+│   ├── fake_job_postings.csv
+│   ├── synthetic_indian_jobs.csv
+│   ├── job_contract_scam_dataset.csv
+│   └── india_job_scams.json
+├── processed/
+│   ├── train.csv
+│   └── test.csv
+└── README.md
 ```

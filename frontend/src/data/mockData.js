@@ -263,6 +263,140 @@ export const mockAnalysisLowRisk = {
   ]
 };
 
+export const mockAnalysisIndiaScam = {
+  id: "HS-2026-9042",
+  jobTitle: "Accounts Assistant & Data Executive (MNC Placement)",
+  company: "Excel Career Solutions (Unverified)",
+  url: "https://excel-careers-india.in/jobs/accounts-assistant",
+  recruiterEmail: "placementfee@gmail.com",
+  recruiterName: "Rajesh Kumar (WhatsApp Recruiter)",
+  scanDate: "Sept 18, 2026 • 09:30 PM",
+  score: 94,
+  verdict: "DON'T APPLY",
+  riskLevel: "high",
+  confidence: "98%",
+  summary: "Extreme risk fake placement consultancy detected. The listing demands an advance 'refundable' security deposit / registration charge of ₹5,000, recruiter conducts onboarding exclusively via WhatsApp (+91 9812345678), and uses a free @gmail.com address.",
+  riskFactors: [
+    {
+      id: "rf-in-1",
+      severity: "high",
+      severityScore: 96,
+      category: "Financial Scam Signals",
+      headline: "Mandatory Registration / Security Deposit Fee",
+      evidence: "Extracted Clause: 'Our consultancy charges are ₹5,000 only, which is a small refundable deposit to guarantee placement.' Legitimate corporate employers never charge job-seekers placement fees.",
+      categoryType: "accent-document"
+    },
+    {
+      id: "rf-in-2",
+      severity: "high",
+      severityScore: 92,
+      category: "Recruiter Verification",
+      headline: "WhatsApp-Only Recruitment Channel & Free Webmail",
+      evidence: "Channel Check: Recruiter provides free webmail (placementfee@gmail.com) and directs all communications to WhatsApp (+91 9812345678).",
+      categoryType: "accent-recruiter"
+    },
+    {
+      id: "rf-in-3",
+      severity: "high",
+      severityScore: 88,
+      category: "Job Content Analysis (ML)",
+      headline: "Statistical Fake Job Linguistic Markers",
+      evidence: "ML Text Classifier detected 94.2% similarity with fraudulent Indian consultancy job posting patterns (Key signals: 'placement guarantee', 'registration fee', 'whatsapp').",
+      categoryType: "accent-document"
+    }
+  ],
+  matrix: [
+    {
+      checkName: "Advance Placement Fee Check",
+      status: "FAIL",
+      explanation: "Mandatory ₹5,000 registration fee requested.",
+      evidenceFooter: "Violates ethical employment guidelines"
+    },
+    {
+      checkName: "Corporate Email Verification",
+      status: "FAIL",
+      explanation: "Recruiter uses free webmail @gmail.com address.",
+      evidenceFooter: "No enterprise email domain found"
+    },
+    {
+      checkName: "WhatsApp-Only Interview Channel",
+      status: "FAIL",
+      explanation: "Directs applicant to WhatsApp instead of official ATS portal.",
+      evidenceFooter: "WhatsApp recruitment flag"
+    },
+    {
+      checkName: "Company Registry Check",
+      status: "FAIL",
+      explanation: "No active MCA CIN or verified corporate office found.",
+      evidenceFooter: "MCA / Public directory scan returned 0 records"
+    }
+  ]
+};
+
+export const mockAnalysisTelegramScam = {
+  id: "HS-2026-9721",
+  jobTitle: "Remote Crypto Portfolio & Task Specialist",
+  company: "Global Fast Growth Ltd",
+  url: "https://global-fast-remote-jobs.site/apply",
+  recruiterEmail: "hr@global-fast-remote-jobs.site",
+  recruiterName: "Alex Vance (@fast_crypto_jobs)",
+  scanDate: "Sept 18, 2026 • 09:40 PM",
+  score: 91,
+  verdict: "DON'T APPLY",
+  riskLevel: "high",
+  confidence: "95%",
+  summary: "Critical task-investment scam detected. Guarantees $1,500/week payout for simple tasks, directs communication to anonymous Telegram bot handles, and uses a disposable .site domain.",
+  riskFactors: [
+    {
+      id: "rf-tg-1",
+      severity: "high",
+      severityScore: 94,
+      category: "Financial Scam Signals",
+      headline: "Prepaid Task & Crypto Wallet Recharge Pattern",
+      evidence: "Scam pattern: Candidate is promised $1,500 weekly payout and asked to deposit crypto to 'recharge wallet' for commission tasks.",
+      categoryType: "accent-document"
+    },
+    {
+      id: "rf-tg-2",
+      severity: "high",
+      severityScore: 90,
+      category: "Recruiter Verification",
+      headline: "Anonymous Telegram Recruiter Channel",
+      evidence: "Channel Check: Recruiter operates exclusively via Telegram handle @fast_crypto_jobs with no verifiable corporate email or identity.",
+      categoryType: "accent-recruiter"
+    },
+    {
+      id: "rf-tg-3",
+      severity: "high",
+      severityScore: 86,
+      category: "URL & Website Analysis",
+      headline: "Disposable Scam TLD (.site)",
+      evidence: "Domain 'global-fast-remote-jobs.site' uses high-risk low-cost disposable TLD.",
+      categoryType: "accent-url"
+    }
+  ],
+  matrix: [
+    {
+      checkName: "Prepaid Task Scam Check",
+      status: "FAIL",
+      explanation: "Promises unrealistic payouts for liking/subscribing or task recharge.",
+      evidenceFooter: "Classic high-yield investment/task trap"
+    },
+    {
+      checkName: "Telegram Channel Check",
+      status: "FAIL",
+      explanation: "Recruiter refuses formal interview, operates on Telegram.",
+      evidenceFooter: "Anonymous handle detected"
+    },
+    {
+      checkName: "URL & TLD Reputation",
+      status: "FAIL",
+      explanation: "Registered on low-reputation .site TLD.",
+      evidenceFooter: "Disposable phishing host"
+    }
+  ]
+};
+
 export const mockHistoryList = [
   {
     id: "HS-2026-8891",

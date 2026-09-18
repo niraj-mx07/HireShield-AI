@@ -29,11 +29,12 @@ from sklearn.model_selection import train_test_split
 # Paths
 # ---------------------------------------------------------------------------
 ML_DIR = Path(__file__).resolve().parent.parent
-RAW_CSV = ML_DIR / "data" / "raw" / "fake_job_postings.csv"
+RAW_DIR = ML_DIR / "data" / "raw"
+RAW_CSV = RAW_DIR / "fake_job_postings.csv"
+RAW_INDIA_CSV = RAW_DIR / "synthetic_indian_jobs.csv"
+RAW_CONTRACT_CSV = RAW_DIR / "job_contract_scam_dataset.csv"
+RAW_INDIA_JSON = RAW_DIR / "india_job_scams.json"
 PROCESSED_DIR = ML_DIR / "data" / "processed"
-
-# Text columns to combine into a single feature
-TEXT_COLUMNS = ["title", "description", "requirements", "company_profile", "benefits"]
 
 LABEL_COLUMN = "fraudulent"
 TEST_SIZE = 0.20
@@ -41,30 +42,80 @@ RANDOM_STATE = 42
 
 
 def load_raw() -> pd.DataFrame:
-    """Load the raw CSV; abort if it doesn't exist."""
-    if not RAW_CSV.exists():
-        print(f"[ERROR] Raw CSV not found: {RAW_CSV}")
-        print("        Run download_data.py first or place the file manually.")
+    """Load and normalize raw datasets from diverse sources into unified schema."""
+    frames: list[pd.DataFrame] = []
+
+    # 1. Global Kaggle Fake Job Postings
+    if RAW_CSV.exists():
+        df_kaggle = pd.read_csv(RAW_CSV)
+        print(f"[INFO] Loaded {len(df_kaggle):,} rows from {RAW_CSV.name}")
+        # Standardize text columns
+        cols = ["title", "description", "requirements", "company_profile", "benefits"]
+        for c in cols:
+            df_kaggle[c] = df_kaggle[c].fillna("") if c in df_kaggle.columns else ""
+        df_kaggle["combined_text"] = df_kaggle[cols].agg(" ".join, axis=1).str.strip()
+        df_kaggle = df_kaggle[["combined_text", "fraudulent"]].dropna(subset=["fraudulent"])
+        frames.append(df_kaggle)
+    else:
+        print(f"[WARNING] Raw CSV not found: {RAW_CSV}")
+
+    # 2. Indian Job Fraud Dataset (Adit Sawhney)
+    if RAW_INDIA_CSV.exists():
+        df_ind = pd.read_csv(RAW_INDIA_CSV)
+        print(f"[INFO] Loaded {len(df_ind):,} rows from {RAW_INDIA_CSV.name}")
+        cols = ["title", "company", "description", "requirements", "salary", "contact"]
+        for c in cols:
+            df_ind[c] = df_ind[c].fillna("") if c in df_ind.columns else ""
+        df_ind["combined_text"] = df_ind[cols].agg(" ".join, axis=1).str.strip()
+        if "label" in df_ind.columns:
+            df_ind["fraudulent"] = df_ind["label"]
+        df_ind = df_ind[["combined_text", "fraudulent"]].dropna(subset=["fraudulent"])
+        frames.append(df_ind)
+
+    # 3. Contract & Internship Scam Dataset (Sohaib Dev)
+    if RAW_CONTRACT_CSV.exists():
+        df_contract = pd.read_csv(RAW_CONTRACT_CSV)
+        print(f"[INFO] Loaded {len(df_contract):,} rows from {RAW_CONTRACT_CSV.name}")
+        cols = ["title", "company_name", "contract_type", "experience_letter_terms", "package_benefits_detail"]
+        for c in cols:
+            df_contract[c] = df_contract[c].fillna("") if c in df_contract.columns else ""
+        df_contract["combined_text"] = df_contract[cols].agg(" ".join, axis=1).str.strip()
+        if "is_fraudulent" in df_contract.columns:
+            df_contract["fraudulent"] = df_contract["is_fraudulent"]
+        df_contract = df_contract[["combined_text", "fraudulent"]].dropna(subset=["fraudulent"])
+        frames.append(df_contract)
+
+    # 4. India Job Scams curated JSON
+    if RAW_INDIA_JSON.exists():
+        df_json = pd.read_json(RAW_INDIA_JSON)
+        print(f"[INFO] Loaded {len(df_json):,} rows from {RAW_INDIA_JSON.name}")
+        cols = ["title", "description", "requirements", "company_profile", "benefits"]
+        for c in cols:
+            df_json[c] = df_json[c].fillna("") if c in df_json.columns else ""
+        df_json["combined_text"] = df_json[cols].agg(" ".join, axis=1).str.strip()
+        df_json = df_json[["combined_text", "fraudulent"]].dropna(subset=["fraudulent"])
+        frames.append(df_json)
+
+    if not frames:
+        print("[ERROR] No raw data found in ml/data/raw/")
         sys.exit(1)
 
-    df = pd.read_csv(RAW_CSV)
-    print(f"[INFO] Loaded {len(df):,} rows from {RAW_CSV.name}")
+    df = pd.concat(frames, ignore_index=True)
+    print(f"[INFO] Total merged raw rows across all sources: {len(df):,}")
     return df
 
 
 def combine_text_columns(df: pd.DataFrame) -> pd.DataFrame:
-    """Merge multiple text columns into a single ``combined_text`` field.
+    """Merge text columns into combined_text if not already constructed."""
+    if "combined_text" in df.columns:
+        df["combined_text"] = df["combined_text"].fillna("").astype(str).str.strip()
+        return df
 
-    Missing values are replaced with empty strings so the concatenation
-    never contains literal ``nan``.
-    """
-    for col in TEXT_COLUMNS:
-        if col not in df.columns:
-            df[col] = ""
-        else:
-            df[col] = df[col].fillna("")
+    text_cols = [c for c in ["title", "description", "requirements", "company_profile", "benefits"] if c in df.columns]
+    for col in text_cols:
+        df[col] = df[col].fillna("")
 
-    df["combined_text"] = df[TEXT_COLUMNS].agg(" ".join, axis=1).str.strip()
+    df["combined_text"] = df[text_cols].agg(" ".join, axis=1).str.strip()
     return df
 
 

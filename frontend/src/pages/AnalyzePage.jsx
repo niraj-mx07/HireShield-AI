@@ -2,7 +2,14 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Link2, FileText, Upload, UserCheck, Mail, Sparkles, ArrowRight, ShieldCheck, FileCheck } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
-import { mockAnalysisHighRisk, mockAnalysisLowRisk, mockAnalysisModerateRisk } from '../data/mockData';
+import {
+  mockAnalysisHighRisk,
+  mockAnalysisLowRisk,
+  mockAnalysisModerateRisk,
+  mockAnalysisIndiaScam,
+  mockAnalysisTelegramScam,
+} from '../data/mockData';
+import { submitAssessment, formatBackendResponse } from '../services/api';
 
 export const AnalyzePage = () => {
   const navigate = useNavigate();
@@ -28,6 +35,26 @@ export const AnalyzePage = () => {
     loadReport(mockAnalysisHighRisk);
   };
 
+  const loadPresetIndiaScam = () => {
+    setUrlInput('https://excel-careers-india.in/jobs/accounts-assistant');
+    setDescInput('Accounts Assistant Job Openings in Mumbai | ₹25,000/month Salary | Placement Guarantee. Join our Placement Consultant today and get placed in top MNCs. Our consultancy charges are ₹5,000 refundable security deposit only.');
+    setFileName('Excel_Placement_Agreement.pdf');
+    setRecruiterEmail('placementfee@gmail.com');
+    setRecruiterName('Rajesh Kumar (WhatsApp Consultant)');
+    setMessageInput('Congratulations! Selected for MNC Accounts role. Pay ₹5,000 refundable security deposit via UPI/GPay to confirm slot. Contact WhatsApp: +91 9812345678.');
+    loadReport(mockAnalysisIndiaScam);
+  };
+
+  const loadPresetTelegramScam = () => {
+    setUrlInput('https://global-fast-remote-jobs.site/apply');
+    setDescInput('Remote Crypto Portfolio & Task Specialist. Guaranteed $1,500 weekly payout + free MacBook Pro shipped immediately. Complete daily simple tasks and earn commission.');
+    setFileName('Contract_Bond_Agreement.pdf');
+    setRecruiterEmail('hr@global-fast-remote-jobs.site');
+    setRecruiterName('Alex Vance (@fast_crypto_jobs)');
+    setMessageInput('Hi! To activate your daily $1,500 crypto task bot, connect with our supervisor on Telegram @fast_crypto_jobs.');
+    loadReport(mockAnalysisTelegramScam);
+  };
+
   const loadPresetSafe = () => {
     setUrlInput('https://stripe.com/jobs/listing/software-engineer-intern');
     setDescInput('Stripe is hiring Software Engineer Interns for Summer 2026. You will build payment infrastructure with Ruby, Go, and React. $55/hr + housing stipend. Official university recruiting program.');
@@ -38,17 +65,49 @@ export const AnalyzePage = () => {
     loadReport(mockAnalysisLowRisk);
   };
 
-  const handleSubmit = (e) => {
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    // Default load high risk if not prefilled
-    if (urlInput.includes('stripe')) {
-      loadReport(mockAnalysisLowRisk);
-    } else if (urlInput.includes('vanguard')) {
-      loadReport(mockAnalysisModerateRisk);
-    } else {
-      loadReport(mockAnalysisHighRisk);
+    setIsSubmitting(true);
+
+    try {
+      // 1. Attempt live API submission to FastAPI backend
+      const apiResult = await submitAssessment({
+        url: urlInput || undefined,
+        description: descInput || undefined,
+        company_name: descInput.includes('Stripe') ? 'Stripe' : descInput.includes('Excel') ? 'Excel Career Solutions' : undefined,
+        recruiter_email: recruiterEmail || undefined,
+        recruiter_name: recruiterName || undefined,
+        message: messageInput || undefined,
+      });
+
+      const formatted = formatBackendResponse(apiResult, {
+        url: urlInput,
+        description: descInput,
+        recruiter_email: recruiterEmail,
+        recruiter_name: recruiterName,
+      });
+
+      loadReport(formatted);
+    } catch (err) {
+      console.warn('Backend live API unavailable, using local mock analysis fallback:', err);
+      // Fallback to presets/mock
+      if (urlInput.includes('stripe')) {
+        loadReport(mockAnalysisLowRisk);
+      } else if (urlInput.includes('excel')) {
+        loadReport(mockAnalysisIndiaScam);
+      } else if (urlInput.includes('global-fast') || urlInput.includes('telegram')) {
+        loadReport(mockAnalysisTelegramScam);
+      } else if (urlInput.includes('vanguard')) {
+        loadReport(mockAnalysisModerateRisk);
+      } else {
+        loadReport(mockAnalysisHighRisk);
+      }
+    } finally {
+      setIsSubmitting(false);
+      navigate('/analyze/processing');
     }
-    navigate('/analyze/processing');
   };
 
   const tabs = [
@@ -80,7 +139,7 @@ export const AnalyzePage = () => {
       <div className="bg-surface-2 p-4 rounded-2xl border border-ink/5 flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-2 text-xs font-semibold text-ink-muted">
           <Sparkles className="w-4 h-4 text-primary" />
-          <span>1-Click Presentation Presets:</span>
+          <span>1-Click Test Presets:</span>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <button
@@ -88,14 +147,28 @@ export const AnalyzePage = () => {
             onClick={loadPresetScam}
             className="px-3.5 py-1.5 rounded-full bg-risk-high-bg text-risk-high text-xs font-semibold hover:bg-risk-high-bg/80 transition-all flex items-center gap-1.5"
           >
-            <span>⚡ Load High-Risk Scam Sample</span>
+            <span>⚡ Check Reimbursement Scam</span>
+          </button>
+          <button
+            type="button"
+            onClick={loadPresetIndiaScam}
+            className="px-3.5 py-1.5 rounded-full bg-amber-500/10 text-amber-700 dark:text-amber-400 text-xs font-semibold hover:bg-amber-500/20 transition-all flex items-center gap-1.5"
+          >
+            <span>⚡ ₹5,000 Placement Deposit Scam</span>
+          </button>
+          <button
+            type="button"
+            onClick={loadPresetTelegramScam}
+            className="px-3.5 py-1.5 rounded-full bg-purple-500/10 text-purple-700 dark:text-purple-400 text-xs font-semibold hover:bg-purple-500/20 transition-all flex items-center gap-1.5"
+          >
+            <span>⚡ Telegram Crypto Task Scam</span>
           </button>
           <button
             type="button"
             onClick={loadPresetSafe}
             className="px-3.5 py-1.5 rounded-full bg-risk-low-bg text-risk-low text-xs font-semibold hover:bg-risk-low-bg/80 transition-all flex items-center gap-1.5"
           >
-            <span>⚡ Load Verified Safe Sample</span>
+            <span>⚡ Verified Safe Enterprise</span>
           </button>
         </div>
       </div>

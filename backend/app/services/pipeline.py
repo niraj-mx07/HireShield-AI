@@ -86,13 +86,17 @@ async def run_assessment(
     await db.assessments.insert_one(record.model_dump())
 
     # ------------------------------------------------------------------
-    # 2. Run all analyzers
+    # 2. Extract Document Text (if any) and Run All Analyzers
     # ------------------------------------------------------------------
+    from app.analyzers.document_analysis import extract_document_text
+    extracted_doc_text = extract_document_text(document_bytes, document_filename)
+
     results: dict[RiskCategory, CategoryResult] = {}
 
     results[RiskCategory.JOB_CONTENT] = await job_content.analyze(
         description=request.description,
         company_name=request.company_name,
+        message=request.message,
     )
     results[RiskCategory.COMPANY_VERIFICATION] = await company_verification.analyze(
         company_name=request.company_name,
@@ -102,7 +106,9 @@ async def run_assessment(
     results[RiskCategory.RECRUITER_VERIFICATION] = await recruiter_verification.analyze(
         recruiter_email=request.recruiter_email,
         recruiter_name=request.recruiter_name,
+        recruiter_phone=request.recruiter_phone,
         company_name=request.company_name,
+        message=request.message,
         consent=consent,
     )
     results[RiskCategory.URL_WEBSITE] = await url_analysis.analyze(
@@ -112,16 +118,21 @@ async def run_assessment(
     )
     results[RiskCategory.FINANCIAL_SCAM] = await financial_signals.analyze(
         description=request.description,
+        message=request.message,
+        document_text=extracted_doc_text,
     )
     results[RiskCategory.DOCUMENT_ANALYSIS] = await document_analysis.analyze(
         document_bytes=document_bytes,
         document_filename=document_filename,
+        document_text=extracted_doc_text,
     )
     results[RiskCategory.INFORMATION_CONSISTENCY] = await consistency_check.analyze(
         description=request.description,
         url=request.url,
         company_name=request.company_name,
         recruiter_email=request.recruiter_email,
+        message=request.message,
+        document_text=extracted_doc_text,
     )
 
     # ------------------------------------------------------------------
@@ -130,7 +141,24 @@ async def run_assessment(
     risk_score, band, rec, confidence, category_scores, risk_factors = score_assessment(results)
 
     # ------------------------------------------------------------------
-    # 4. Build response and update the DB record
+    # 4. Determine Active Inputs List
+    # ------------------------------------------------------------------
+    active_inputs: list[str] = []
+    if request.url and request.url.strip():
+        active_inputs.append("Job URL")
+    if request.description and request.description.strip():
+        active_inputs.append("Job Description")
+    if request.company_name and request.company_name.strip():
+        active_inputs.append("Company Name")
+    if (request.recruiter_email and request.recruiter_email.strip()) or (request.recruiter_name and request.recruiter_name.strip()) or (request.recruiter_phone and request.recruiter_phone.strip()):
+        active_inputs.append("Recruiter Details")
+    if request.message and request.message.strip():
+        active_inputs.append("Email / Message")
+    if document_bytes:
+        active_inputs.append(f"Document ({document_filename or 'Uploaded File'})")
+
+    # ------------------------------------------------------------------
+    # 5. Build response and update the DB record
     # ------------------------------------------------------------------
     now = datetime.now(timezone.utc)
     response = AssessmentResponse(
@@ -142,6 +170,7 @@ async def run_assessment(
         confidence=confidence,
         category_scores=category_scores,
         risk_factors=risk_factors,
+        active_inputs=active_inputs,
         created_at=now,
     )
 
@@ -155,12 +184,13 @@ async def run_assessment(
             "confidence": confidence,
             "category_scores": [cs.model_dump() for cs in category_scores],
             "risk_factors": [rf.model_dump() for rf in risk_factors],
+            "active_inputs": active_inputs,
             "updated_at": now.isoformat(),
         }},
     )
 
     logger.info(
-        "Assessment %s completed — score=%.1f band=%s rec=%s confidence=%.2f",
-        assessment_id, risk_score, band.value, rec.value, confidence,
+        "Assessment %s completed — score=%.1f band=%s rec=%s confidence=%.2f inputs=%s",
+        assessment_id, risk_score, band.value, rec.value, confidence, active_inputs,
     )
     return response

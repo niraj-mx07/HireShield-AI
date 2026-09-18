@@ -26,13 +26,15 @@ logger = logging.getLogger(__name__)
 async def analyze(
     description: str | None = None,
     company_name: str | None = None,
+    message: str | None = None,
     **kwargs,
 ) -> CategoryResult:
-    """Analyse job-posting content for risk indicators using ML text classification.
+    """Analyse job-posting content and recruiter messages for risk indicators using ML text classification.
 
     Args:
         description: Raw job description text.
         company_name: Name of the hiring company/organisation.
+        message: Recruiter communication or task description.
 
     Returns:
         A :class:`CategoryResult` with score (0–100), explainable risk factors,
@@ -40,7 +42,7 @@ async def analyze(
         ``analyzed=False`` if input was missing or model artifacts were unavailable.
     """
     # 1. Check if input text is available
-    text_components = [p.strip() for p in (company_name, description) if p and p.strip()]
+    text_components = [p.strip() for p in (company_name, description, message) if p and p.strip()]
     if not text_components:
         return CategoryResult(score=0.0, risk_factors=[], analyzed=False)
 
@@ -71,8 +73,26 @@ async def analyze(
         logger.error("Error during job content model inference: %s", exc, exc_info=True)
         return CategoryResult(score=0.0, risk_factors=[], analyzed=False)
 
-    # 4. Construct explainable risk indicators based on risk score
+    # 4. Extract explainable top feature n-grams that triggered the model
+    detected_phrases: list[str] = []
+    try:
+        if hasattr(model, "coef_") and hasattr(vectorizer, "get_feature_names_out"):
+            feature_names = vectorizer.get_feature_names_out()
+            row, cols = features.nonzero()
+            word_weights = []
+            for col_idx in cols:
+                w = float(model.coef_[0][col_idx]) * float(features[0, col_idx])
+                if w > 0.15:  # positive contribution toward fraud
+                    word_weights.append((feature_names[col_idx], w))
+            # Sort top positive contributing features
+            word_weights.sort(key=lambda x: x[1], reverse=True)
+            detected_phrases = [w[0] for w in word_weights[:5]]
+    except Exception as e:
+        logger.debug("Feature importance extraction skipped: %s", e)
+
+    # 5. Construct explainable risk indicators based on risk score & top features
     risk_factors: list[RiskFactor] = []
+    phrases_snippet = f" (Key signals: {', '.join([repr(p) for p in detected_phrases])})" if detected_phrases else ""
 
     if score >= 70.0:
         risk_factors.append(
@@ -84,8 +104,8 @@ async def analyze(
                     "characteristic of fraudulent or deceptive job listings."
                 ),
                 evidence=(
-                    f"Statistical text classification model estimated risk probability "
-                    f"at {score:.1f}% based on linguistic and phrase patterns."
+                    f"Statistical text classification model estimated high risk probability "
+                    f"at {score:.1f}% based on linguistic and phrase patterns{phrases_snippet}."
                 ),
                 source="ml_job_content_classifier",
                 confidence=round(fraud_prob, 2),
@@ -102,7 +122,7 @@ async def analyze(
                 ),
                 evidence=(
                     f"Statistical text classification model estimated elevated risk "
-                    f"probability at {score:.1f}%."
+                    f"probability at {score:.1f}%{phrases_snippet}."
                 ),
                 source="ml_job_content_classifier",
                 confidence=round(fraud_prob, 2),

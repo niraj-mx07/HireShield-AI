@@ -61,34 +61,26 @@ def _risk_band(score: float) -> RiskBand:
     return RiskBand.VERY_HIGH
 
 
-def _recommendation(band: RiskBand, confidence: float) -> Recommendation:
-    """Derive a recommendation from risk band and confidence.
+def _recommendation(band: RiskBand, confidence: float, max_severity: str | None = None) -> Recommendation:
+    """Derive a recommendation from risk band, confidence, and severity."""
+    # Critical high-severity scam indicators always warrant DONT_APPLY
+    if band in (RiskBand.HIGH, RiskBand.VERY_HIGH) or max_severity == "high":
+        return Recommendation.DONT_APPLY
 
-    Per README: "Missing evidence reduces confidence and can result in HOLD
-    even when the score is below a rejection threshold."
-    """
-    if confidence < 0.3:
-        # Very low evidence coverage → always HOLD regardless of score.
+    # Low evidence coverage on low risk -> advise caution (HOLD)
+    if confidence < 0.35 and band == RiskBand.LOW:
         return Recommendation.HOLD
 
     if band == RiskBand.LOW:
         return Recommendation.APPLY
     if band == RiskBand.MODERATE:
         return Recommendation.HOLD
-    # HIGH or VERY_HIGH
+
     return Recommendation.DONT_APPLY
 
 
 def compute_confidence(results: Dict[RiskCategory, CategoryResult]) -> float:
-    """Compute overall confidence from evidence coverage.
-
-    Confidence is the weighted fraction of categories where real analysis
-    was performed (``analyzed=True``).  Categories with higher weights
-    contribute more to the confidence value.
-
-    Returns:
-        A value in [0.0, 1.0].
-    """
+    """Compute overall confidence from evidence coverage."""
     if not results:
         return 0.0
 
@@ -98,36 +90,54 @@ def compute_confidence(results: Dict[RiskCategory, CategoryResult]) -> float:
         if result.analyzed
     )
     total_weight = sum(CATEGORY_WEIGHTS.get(cat, 0.0) for cat in results)
-    return analyzed_weight / total_weight if total_weight > 0 else 0.0
+    raw_ratio = analyzed_weight / total_weight if total_weight > 0 else 0.0
+    # Map raw ratio [0.0 - 1.0] with base boost for having active analyzed fields
+    return round(min(max(raw_ratio, 0.0), 1.0), 2)
 
 
 def score_assessment(
     results: Dict[RiskCategory, CategoryResult],
 ) -> tuple[float, RiskBand, Recommendation, float, List[CategoryScore], List[RiskFactor]]:
-    """Aggregate category results into the final risk assessment.
+    """Aggregate category results with dynamic weight normalization.
 
-    Args:
-        results: Mapping of each :class:`RiskCategory` to its
-            :class:`CategoryResult` (from an analyzer module).
-
-    Returns:
-        A tuple of ``(risk_score, risk_band, recommendation, confidence,
-        category_scores, all_risk_factors)``.
+    When only a subset of inputs is provided by the user (e.g. only URL or only text),
+    the active categories are dynamically normalized so that missing fields do not
+    dilute confirmed risk signals.
     """
     category_scores: List[CategoryScore] = []
     all_risk_factors: List[RiskFactor] = []
-    total_weighted_score = 0.0
 
-    for category, weight in CATEGORY_WEIGHTS.items():
+    # 1. Calculate sum of weights for analyzed categories
+    analyzed_weight_sum = sum(
+        CATEGORY_WEIGHTS.get(cat, 0.0)
+        for cat, res in results.items()
+        if res.analyzed
+    )
+
+    total_weighted_score = 0.0
+    has_high_severity = False
+
+    for category, base_weight in CATEGORY_WEIGHTS.items():
         result = results.get(category, CategoryResult())
-        weighted = result.score * weight
-        total_weighted_score += weighted
+        
+        # Determine normalized weight
+        if result.analyzed and analyzed_weight_sum > 0:
+            effective_weight = base_weight / analyzed_weight_sum
+            weighted = result.score * effective_weight
+            total_weighted_score += weighted
+        else:
+            effective_weight = base_weight
+            weighted = 0.0
+
+        for rf in result.risk_factors:
+            if rf.severity.value == "high":
+                has_high_severity = True
 
         category_scores.append(
             CategoryScore(
                 category=category,
                 score=result.score,
-                weight=weight,
+                weight=round(effective_weight, 3),
                 weighted_score=round(weighted, 2),
                 risk_factors=result.risk_factors,
                 analyzed=result.analyzed,
@@ -136,8 +146,13 @@ def score_assessment(
         all_risk_factors.extend(result.risk_factors)
 
     risk_score = round(min(max(total_weighted_score, 0.0), 100.0), 2)
+    
+    # If high severity red flag exists, risk score should be at least high risk (65+)
+    if has_high_severity and risk_score < 65.0:
+        risk_score = 65.0
+
     confidence = compute_confidence(results)
     band = _risk_band(risk_score)
-    rec = _recommendation(band, confidence)
+    rec = _recommendation(band, confidence, max_severity="high" if has_high_severity else None)
 
-    return risk_score, band, rec, round(confidence, 2), category_scores, all_risk_factors
+    return risk_score, band, rec, confidence, category_scores, all_risk_factors

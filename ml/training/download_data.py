@@ -26,14 +26,18 @@ ML_DIR = Path(__file__).resolve().parent.parent          # ml/
 DATA_RAW_DIR = ML_DIR / "data" / "raw"
 EXPECTED_CSV = DATA_RAW_DIR / "fake_job_postings.csv"
 
-KAGGLE_DATASET = "shivamb/real-or-fake-fake-jobposting-prediction"
+KAGGLE_DATASETS = [
+    "shivamb/real-or-fake-fake-jobposting-prediction",
+    "aditsawhney/indian-job-fraud-dataset",
+    "sohaibdevv/detecting-fake-job-postings-and-internship-scams",
+]
 
 
 def download_via_kaggle() -> bool:
-    """Attempt to download using the Kaggle API.
+    """Attempt to download all registered datasets using the Kaggle API.
 
     Returns:
-        ``True`` if the download succeeded, ``False`` otherwise.
+        ``True`` if at least one download succeeded, ``False`` otherwise.
     """
     try:
         from kaggle.api.kaggle_api_extended import KaggleApi  # type: ignore[import-untyped]
@@ -47,16 +51,22 @@ def download_via_kaggle() -> bool:
         print("[INFO] KAGGLE_USERNAME / KAGGLE_KEY not set -- skipping API download.")
         return False
 
-    print(f"[INFO] Downloading dataset '{KAGGLE_DATASET}' via Kaggle API ...")
+    success_any = False
     try:
         api = KaggleApi()
         api.authenticate()
         DATA_RAW_DIR.mkdir(parents=True, exist_ok=True)
-        api.dataset_download_files(KAGGLE_DATASET, path=str(DATA_RAW_DIR), unzip=True)
-        print(f"[OK]   Dataset saved to {DATA_RAW_DIR}")
-        return True
+        for ds in KAGGLE_DATASETS:
+            print(f"[INFO] Downloading dataset '{ds}' via Kaggle API ...")
+            try:
+                api.dataset_download_files(ds, path=str(DATA_RAW_DIR), unzip=True)
+                print(f"[OK]   Dataset '{ds}' saved to {DATA_RAW_DIR}")
+                success_any = True
+            except Exception as e:
+                print(f"[WARN] Failed to download '{ds}': {e}")
+        return success_any
     except Exception as exc:
-        print(f"[WARN] Kaggle download failed: {exc}")
+        print(f"[WARN] Kaggle auth/download failed: {exc}")
         return False
 
 
