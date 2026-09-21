@@ -1,21 +1,36 @@
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { ShieldCheck, ArrowLeft, Download, RefreshCw, PlusCircle, Lock, CheckCircle2, AlertTriangle, UserCheck, Calendar, ExternalLink, Sparkles } from 'lucide-react';
+import { ShieldCheck, ArrowLeft, Download, RefreshCw, PlusCircle, Lock, CheckCircle2, AlertTriangle, UserCheck, Calendar, ExternalLink, Sparkles, FileText } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { RiskScoreGauge } from '../components/RiskScoreGauge';
 import { RiskFactorCard } from '../components/RiskFactorCard';
 import { VerificationMatrixItem } from '../components/VerificationMatrixItem';
+import { generateAssessmentPDF } from '../services/pdfGenerator';
 
 export const ResultPage = () => {
   const navigate = useNavigate();
-  const { isLoggedIn, activeReport, toggleAuth } = useAuth();
+  const { isLoggedIn, activeReport, openAuthModal } = useAuth();
   const [downloadToast, setDownloadToast] = useState(false);
 
   const report = activeReport;
 
   const handleDownloadPDF = () => {
-    setDownloadToast(true);
-    setTimeout(() => setDownloadToast(false), 3000);
+    if (isLoggedIn) {
+      try {
+        generateAssessmentPDF(report);
+        setDownloadToast(true);
+        setTimeout(() => setDownloadToast(false), 4000);
+      } catch (err) {
+        console.error('PDF generation error:', err);
+      }
+    } else {
+      // Prompt user to sign in / sign up to export PDF
+      openAuthModal('login', () => {
+        generateAssessmentPDF(report);
+        setDownloadToast(true);
+        setTimeout(() => setDownloadToast(false), 4000);
+      });
+    }
   };
 
   return (
@@ -43,9 +58,11 @@ export const ResultPage = () => {
           <button
             onClick={handleDownloadPDF}
             className="px-4 py-2 rounded-full bg-surface border border-ink/10 text-xs font-semibold text-ink-muted hover:text-ink hover:bg-surface-2 transition-all flex items-center gap-1.5"
+            title={isLoggedIn ? 'Download PDF Report' : 'Sign in to download PDF Report'}
           >
             <Download className="w-3.5 h-3.5" />
-            <span>Download PDF</span>
+            <span>Download PDF Report</span>
+            {!isLoggedIn && <Lock className="w-3 h-3 text-ink-subtle ml-0.5" />}
           </button>
 
           <Link
@@ -63,7 +80,7 @@ export const ResultPage = () => {
         <div className="bg-primary text-surface px-6 py-3 rounded-2xl text-xs font-semibold shadow-floating flex items-center justify-between animate-in fade-in duration-300">
           <div className="flex items-center gap-2">
             <CheckCircle2 className="w-4 h-4 text-secondary-container" />
-            <span>Mock PDF Report generated successfully! Preparing download stream...</span>
+            <span>Official HireShield Risk Report generated and downloaded successfully!</span>
           </div>
           <button onClick={() => setDownloadToast(false)} className="underline text-[10px]">Dismiss</button>
         </div>
@@ -74,22 +91,30 @@ export const ResultPage = () => {
         <div className="bg-secondary-container/60 border border-primary/20 rounded-3xl p-6 sm:p-8 flex flex-col sm:flex-row items-center justify-between gap-6 shadow-subtle">
           <div className="space-y-1 text-center sm:text-left">
             <div className="flex items-center justify-center sm:justify-start gap-2 text-primary font-semibold text-xs uppercase tracking-wider">
-              <Lock className="w-4 h-4" />
-              <span>Guest Mode Analysis</span>
+              <Sparkles className="w-4 h-4" />
+              <span>Guest Mode Analysis Active</span>
             </div>
             <h3 className="font-serif text-xl font-semibold text-ink">
-              Save this report to your profile history?
+              Save this report to your profile & unlock PDF export
             </h3>
             <p className="text-xs text-ink-muted">
-              Simulate logging in to access saved historical scans, monitoring alerts, and PDF exports.
+              Risk analysis is always free. Create an account to save historical scans, download audit PDFs, and set job alert monitors.
             </p>
           </div>
-          <button
-            onClick={toggleAuth}
-            className="px-6 py-3 rounded-full bg-primary text-surface text-xs font-bold shadow-subtle hover:bg-primary-container transition-all whitespace-nowrap"
-          >
-            Simulate Login Now
-          </button>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => openAuthModal('signup')}
+              className="px-6 py-3 rounded-full bg-primary text-surface text-xs font-bold shadow-subtle hover:bg-primary-container transition-all whitespace-nowrap"
+            >
+              Create Free Account
+            </button>
+            <button
+              onClick={() => openAuthModal('login')}
+              className="px-5 py-3 rounded-full bg-surface border border-ink/10 text-xs font-semibold text-ink hover:bg-surface-2 transition-all whitespace-nowrap"
+            >
+              Sign In
+            </button>
+          </div>
         </div>
       )}
 

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Link2, FileText, Upload, UserCheck, Mail, Sparkles, ArrowRight, ShieldCheck, FileCheck } from 'lucide-react';
+import { Link2, FileText, Upload, UserCheck, Mail, Sparkles, ArrowRight, ShieldCheck, CheckCircle2, AlertCircle } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import {
   mockAnalysisHighRisk,
@@ -16,15 +16,19 @@ export const AnalyzePage = () => {
   const { loadReport } = useAuth();
   const [activeTab, setActiveTab] = useState('url');
 
-  // Input States
+  // Input States (Persist simultaneously across all tabs)
   const [urlInput, setUrlInput] = useState('');
   const [descInput, setDescInput] = useState('');
   const [fileName, setFileName] = useState('');
+  const [fileObject, setFileObject] = useState(null);
   const [recruiterEmail, setRecruiterEmail] = useState('');
   const [recruiterName, setRecruiterName] = useState('');
   const [messageInput, setMessageInput] = useState('');
 
-  // Preset Loaders for quick demo
+  const [validationError, setValidationError] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Preset Loaders for quick demo (populates both Link & Description together!)
   const loadPresetScam = () => {
     setUrlInput('https://apex-global-careers-hire.net/jobs/entry-data-spec');
     setDescInput('We are looking for an Entry-Level Remote Data Specialist. $65/hr. High payout. Mandatory requirement: Candidates must accept a $2,000 cashier check reimbursement to purchase Apple hardware from our designated portal.');
@@ -32,6 +36,7 @@ export const AnalyzePage = () => {
     setRecruiterEmail('recruitment@apex-global-hr.net');
     setRecruiterName('Sarah Jenkins');
     setMessageInput('Hello! Your application for Data Entry Specialist has been approved. Please message our hiring manager on Telegram @apex_hr_dept immediately to claim your $2,000 equipment check.');
+    setValidationError('');
     loadReport(mockAnalysisHighRisk);
   };
 
@@ -42,6 +47,7 @@ export const AnalyzePage = () => {
     setRecruiterEmail('placementfee@gmail.com');
     setRecruiterName('Rajesh Kumar (WhatsApp Consultant)');
     setMessageInput('Congratulations! Selected for MNC Accounts role. Pay ₹5,000 refundable security deposit via UPI/GPay to confirm slot. Contact WhatsApp: +91 9812345678.');
+    setValidationError('');
     loadReport(mockAnalysisIndiaScam);
   };
 
@@ -52,6 +58,7 @@ export const AnalyzePage = () => {
     setRecruiterEmail('hr@global-fast-remote-jobs.site');
     setRecruiterName('Alex Vance (@fast_crypto_jobs)');
     setMessageInput('Hi! To activate your daily $1,500 crypto task bot, connect with our supervisor on Telegram @fast_crypto_jobs.');
+    setValidationError('');
     loadReport(mockAnalysisTelegramScam);
   };
 
@@ -62,44 +69,65 @@ export const AnalyzePage = () => {
     setRecruiterEmail('university-hiring@stripe.com');
     setRecruiterName('Elena Rostova');
     setMessageInput('Hi Nihar, Thank you for interviewing with Stripe. We are thrilled to offer you a Software Engineer Internship position for Summer 2026!');
+    setValidationError('');
     loadReport(mockAnalysisLowRisk);
   };
 
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const handleFileChange = (e) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setFileObject(file);
+      setFileName(file.name);
+      setValidationError('');
+    }
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    setValidationError('');
+
+    const trimmedUrl = urlInput.trim();
+    const trimmedDesc = descInput.trim();
+    const trimmedMsg = messageInput.trim();
+
+    // Check if at least one input across all tabs is provided
+    if (!trimmedUrl && !trimmedDesc && !trimmedMsg && !fileName && !recruiterEmail.trim()) {
+      setValidationError('Please provide a Job URL, Description text, Email/Message, or upload a Document.');
+      return;
+    }
+
     setIsSubmitting(true);
 
     try {
-      // 1. Attempt live API submission to FastAPI backend
+      // 1. Live API submission to FastAPI backend (all provided fields submitted together)
       const apiResult = await submitAssessment({
-        url: urlInput || undefined,
-        description: descInput || undefined,
-        company_name: descInput.includes('Stripe') ? 'Stripe' : descInput.includes('Excel') ? 'Excel Career Solutions' : undefined,
-        recruiter_email: recruiterEmail || undefined,
-        recruiter_name: recruiterName || undefined,
-        message: messageInput || undefined,
+        url: trimmedUrl || undefined,
+        description: trimmedDesc || undefined,
+        company_name: trimmedDesc.includes('Stripe') ? 'Stripe' : trimmedDesc.includes('Excel') ? 'Excel Career Solutions' : undefined,
+        recruiter_email: recruiterEmail.trim() || undefined,
+        recruiter_name: recruiterName.trim() || undefined,
+        message: trimmedMsg || undefined,
       });
 
       const formatted = formatBackendResponse(apiResult, {
-        url: urlInput,
-        description: descInput,
+        url: trimmedUrl,
+        description: trimmedDesc || trimmedMsg,
         recruiter_email: recruiterEmail,
         recruiter_name: recruiterName,
       });
 
       loadReport(formatted);
     } catch (err) {
-      console.warn('Backend live API unavailable, using local mock analysis fallback:', err);
-      // Fallback to presets/mock
-      if (urlInput.includes('stripe')) {
+      console.warn('Backend live API offline/error, falling back to local evaluation:', err);
+      // Fallback matching
+      const combined = (trimmedUrl + ' ' + trimmedDesc + ' ' + trimmedMsg).toLowerCase();
+      if (combined.includes('stripe')) {
         loadReport(mockAnalysisLowRisk);
-      } else if (urlInput.includes('excel')) {
+      } else if (combined.includes('excel') || combined.includes('deposit') || combined.includes('₹5,000') || combined.includes('5000')) {
         loadReport(mockAnalysisIndiaScam);
-      } else if (urlInput.includes('global-fast') || urlInput.includes('telegram')) {
+      } else if (combined.includes('crypto') || combined.includes('telegram') || combined.includes('task')) {
         loadReport(mockAnalysisTelegramScam);
-      } else if (urlInput.includes('vanguard')) {
+      } else if (combined.includes('vanguard')) {
         loadReport(mockAnalysisModerateRisk);
       } else {
         loadReport(mockAnalysisHighRisk);
@@ -110,12 +138,13 @@ export const AnalyzePage = () => {
     }
   };
 
+  // Tabs definition with active indicators when content exists
   const tabs = [
-    { id: 'url', label: 'Job URL', icon: Link2 },
-    { id: 'description', label: 'Job Description', icon: FileText },
-    { id: 'document', label: 'Upload Document', icon: Upload },
-    { id: 'recruiter', label: 'Recruiter Details', icon: UserCheck },
-    { id: 'email', label: 'Email / Message', icon: Mail },
+    { id: 'url', label: 'Job URL', icon: Link2, hasValue: !!urlInput.trim() },
+    { id: 'description', label: 'Job Description', icon: FileText, hasValue: !!descInput.trim() },
+    { id: 'document', label: 'Upload Document', icon: Upload, hasValue: !!fileName },
+    { id: 'recruiter', label: 'Recruiter Details', icon: UserCheck, hasValue: !!(recruiterEmail.trim() || recruiterName.trim()) },
+    { id: 'email', label: 'Email / Message', icon: Mail, hasValue: !!messageInput.trim() },
   ];
 
   return (
@@ -125,17 +154,17 @@ export const AnalyzePage = () => {
       <div className="text-center space-y-3">
         <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-secondary-container text-primary text-xs font-semibold">
           <Sparkles className="w-3.5 h-3.5" />
-          <span>Multi-Modal Scam Analysis</span>
+          <span>Multi-Modal Scam Analysis • Free & Open</span>
         </div>
         <h1 className="font-serif text-3xl sm:text-4xl font-semibold text-ink">
           Analyze Job & Internship Opportunity
         </h1>
         <p className="text-sm text-ink-muted max-w-xl mx-auto">
-          Choose your input method below. You can submit a URL, paste job text, upload an offer PDF, or check recruiter contact details.
+          You can provide a <strong>Job URL</strong>, paste <strong>Job Description</strong> text, or <strong>both together</strong>. You can also attach offer letters or recruiter messages for deeper verification.
         </p>
       </div>
 
-      {/* Preset Demo Buttons for Project Guide Demo */}
+      {/* Preset Demo Buttons */}
       <div className="bg-surface-2 p-4 rounded-2xl border border-ink/5 flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-2 text-xs font-semibold text-ink-muted">
           <Sparkles className="w-4 h-4 text-primary" />
@@ -176,7 +205,7 @@ export const AnalyzePage = () => {
       {/* Main Analysis Card */}
       <div className="bg-surface rounded-3xl shadow-floating border border-ink/5 overflow-hidden">
         
-        {/* Navigation Tabs */}
+        {/* Navigation Tabs with Active Dots */}
         <div className="flex border-b border-ink/5 overflow-x-auto scrollbar-none bg-surface-2/50 p-2 gap-1">
           {tabs.map((tab) => {
             const Icon = tab.icon;
@@ -184,15 +213,22 @@ export const AnalyzePage = () => {
             return (
               <button
                 key={tab.id}
+                type="button"
                 onClick={() => setActiveTab(tab.id)}
-                className={`flex items-center gap-2 px-5 py-3 rounded-2xl text-xs font-semibold whitespace-nowrap transition-all ${
+                className={`flex items-center gap-2 px-5 py-3 rounded-2xl text-xs font-semibold whitespace-nowrap transition-all relative ${
                   isCurrent
-                    ? 'bg-primary text-surface'
+                    ? 'bg-primary text-surface shadow-subtle'
                     : 'text-ink-muted hover:text-ink hover:bg-surface/80'
                 }`}
               >
                 <Icon className="w-4 h-4" />
                 <span>{tab.label}</span>
+                {tab.hasValue && (
+                  <span
+                    className={`w-2 h-2 rounded-full ${isCurrent ? 'bg-secondary-container' : 'bg-primary'}`}
+                    title="Contains data"
+                  />
+                )}
               </button>
             );
           })}
@@ -201,16 +237,31 @@ export const AnalyzePage = () => {
         {/* Tab Form Content */}
         <form onSubmit={handleSubmit} className="p-6 sm:p-10 space-y-6">
           
+          {validationError && (
+            <div className="p-4 rounded-2xl bg-risk-high-bg border border-risk-high/20 text-risk-high text-xs font-semibold flex items-center gap-2">
+              <AlertCircle className="w-4 h-4 flex-shrink-0" />
+              <span>{validationError}</span>
+            </div>
+          )}
+
           {/* TAB 1: JOB URL */}
           {activeTab === 'url' && (
             <div className="space-y-4">
-              <label className="block text-xs font-semibold uppercase tracking-wider text-ink-muted">
-                Job Posting or Career Page URL
-              </label>
+              <div className="flex items-center justify-between">
+                <label className="block text-xs font-semibold uppercase tracking-wider text-ink-muted">
+                  Job Posting or Career Page URL
+                </label>
+                {descInput.trim() && (
+                  <span className="text-[11px] text-primary font-medium flex items-center gap-1">
+                    <CheckCircle2 className="w-3.5 h-3.5" />
+                    Description text also provided in Tab 2
+                  </span>
+                )}
+              </div>
               <input
                 type="url"
                 value={urlInput}
-                onChange={(e) => setUrlInput(e.target.value)}
+                onChange={(e) => { setUrlInput(e.target.value); setValidationError(''); }}
                 placeholder="https://company.com/careers/job-title or https://linkedin.com/jobs/view/..."
                 className="w-full bg-canvas border border-ink/10 rounded-2xl px-5 py-3.5 text-sm text-ink placeholder-ink-subtle focus:outline-none focus:border-primary transition-all"
               />
@@ -223,15 +274,23 @@ export const AnalyzePage = () => {
           {/* TAB 2: PASTE JOB DESCRIPTION */}
           {activeTab === 'description' && (
             <div className="space-y-4">
-              <label className="block text-xs font-semibold uppercase tracking-wider text-ink-muted">
-                Pasted Job Description Text
-              </label>
+              <div className="flex items-center justify-between">
+                <label className="block text-xs font-semibold uppercase tracking-wider text-ink-muted">
+                  Pasted Job Description Text
+                </label>
+                {urlInput.trim() && (
+                  <span className="text-[11px] text-primary font-medium flex items-center gap-1">
+                    <CheckCircle2 className="w-3.5 h-3.5" />
+                    Job URL also provided in Tab 1
+                  </span>
+                )}
+              </div>
               <textarea
                 rows={6}
                 value={descInput}
-                onChange={(e) => setDescInput(e.target.value)}
+                onChange={(e) => { setDescInput(e.target.value); setValidationError(''); }}
                 placeholder="Paste the full job post, responsibilities, compensation terms, and contact instructions..."
-                className="w-full bg-canvas border border-ink/10 rounded-2xl p-5 text-sm text-ink placeholder-ink-subtle focus:outline-none focus:border-primary transition-all resize-none"
+                className="w-full bg-canvas border border-ink/10 rounded-2xl p-5 text-sm text-ink placeholder-ink-subtle focus:outline-none focus:border-primary transition-all resize-none font-sans"
               />
               <p className="text-xs text-ink-subtle">
                 Our NLP engine inspects pay rate benchmarks, urgency phrasing, and equipment purchase clauses.
@@ -245,7 +304,13 @@ export const AnalyzePage = () => {
               <label className="block text-xs font-semibold uppercase tracking-wider text-ink-muted">
                 Upload Offer Letter or Contract PDF
               </label>
-              <div className="border-2 border-dashed border-ink/15 bg-canvas rounded-3xl p-8 text-center space-y-3 hover:border-primary/40 transition-all cursor-pointer">
+              <label className="border-2 border-dashed border-ink/15 bg-canvas rounded-3xl p-8 text-center space-y-3 hover:border-primary/40 transition-all cursor-pointer block">
+                <input
+                  type="file"
+                  accept=".pdf,.docx,.txt"
+                  onChange={handleFileChange}
+                  className="hidden"
+                />
                 <div className="w-12 h-12 rounded-full bg-secondary-container text-primary flex items-center justify-center mx-auto">
                   <Upload className="w-6 h-6" />
                 </div>
@@ -258,13 +323,17 @@ export const AnalyzePage = () => {
                 {!fileName && (
                   <button
                     type="button"
-                    onClick={() => setFileName('Sample_Job_Offer_Letter.pdf')}
+                    onClick={(e) => {
+                      e.preventDefault();
+                      setFileName('Sample_Job_Offer_Letter.pdf');
+                      setValidationError('');
+                    }}
                     className="px-4 py-1.5 rounded-full bg-surface border border-ink/10 text-xs font-semibold text-ink-muted hover:text-ink"
                   >
                     Simulate Selecting File
                   </button>
                 )}
-              </div>
+              </label>
             </div>
           )}
 
@@ -314,7 +383,7 @@ export const AnalyzePage = () => {
                 value={messageInput}
                 onChange={(e) => setMessageInput(e.target.value)}
                 placeholder="Paste the email, Telegram/WhatsApp interview message, or offer message received..."
-                className="w-full bg-canvas border border-ink/10 rounded-2xl p-5 text-sm text-ink placeholder-ink-subtle focus:outline-none focus:border-primary transition-all resize-none"
+                className="w-full bg-canvas border border-ink/10 rounded-2xl p-5 text-sm text-ink placeholder-ink-subtle focus:outline-none focus:border-primary transition-all resize-none font-sans"
               />
               <p className="text-xs text-ink-subtle">
                 Detects messaging platform redirection (Telegram/Signal), check reimbursement language, and fake interview steps.
@@ -322,18 +391,27 @@ export const AnalyzePage = () => {
             </div>
           )}
 
+          {/* Cross-Tab Inputs Summary Banner */}
+          {(urlInput.trim() && descInput.trim()) && (
+            <div className="p-3.5 px-5 rounded-2xl bg-secondary-container/40 border border-primary/20 flex items-center gap-2 text-xs text-ink">
+              <CheckCircle2 className="w-4 h-4 text-primary flex-shrink-0" />
+              <span><strong>Cross-Verification Active:</strong> Both Job URL and Description text are provided and will be evaluated together.</span>
+            </div>
+          )}
+
           {/* Submit Action */}
-          <div className="pt-4 border-t border-ink/5 flex items-center justify-between gap-4">
+          <div className="pt-4 border-t border-ink/5 flex flex-col sm:flex-row items-center justify-between gap-4">
             <div className="flex items-center gap-2 text-xs text-ink-muted">
               <ShieldCheck className="w-4 h-4 text-primary" />
-              <span>Multi-layer AI verification protocol active</span>
+              <span>Multi-layer AI verification protocol active (Free • No sign-in required)</span>
             </div>
 
             <button
               type="submit"
-              className="px-8 py-3.5 rounded-full bg-primary text-surface text-xs font-bold shadow-subtle hover:bg-primary-container transition-all flex items-center gap-2"
+              disabled={isSubmitting}
+              className="w-full sm:w-auto px-8 py-3.5 rounded-full bg-primary text-surface text-xs font-bold shadow-subtle hover:bg-primary-container transition-all flex items-center justify-center gap-2 disabled:opacity-50"
             >
-              <span>Run HireShield Scan</span>
+              <span>{isSubmitting ? 'Scanning...' : 'Run HireShield Scan'}</span>
               <ArrowRight className="w-4 h-4" />
             </button>
           </div>

@@ -3,6 +3,7 @@ import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
 import { Header } from './components/Header';
 import { Footer } from './components/Footer';
+import { AuthModal } from './components/AuthModal';
 import { LandingPage } from './pages/LandingPage';
 import { AnalyzePage } from './pages/AnalyzePage';
 import { ProcessingPage } from './pages/ProcessingPage';
@@ -17,6 +18,7 @@ export function App() {
         <div className="min-h-screen flex flex-col justify-between bg-canvas text-ink font-sans">
           <div>
             <Header />
+            <AuthModal />
             <main>
               <Routes>
                 <Route path="/" element={<LandingPage />} />

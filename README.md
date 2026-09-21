@@ -17,6 +17,7 @@ HireShield-AI is an opportunity-credibility assessment system for students, fres
 - [Datasets and Knowledge Bases](#datasets-and-knowledge-bases)
 - [Output](#output)
 - [Local Setup](#local-setup)
+- [Developer Commands Cheatsheet](./COMMANDS.md)
 - [Project Structure](#project-structure)
 - [Privacy and Safety Design](#privacy-and-safety-design)
 - [Team](#team)
@@ -175,13 +176,15 @@ Run these from separate terminals:
 
 ```bash
 cd backend
-uvicorn app.main:app --reload
+uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
 ```
 
 ```bash
 cd frontend
 npm run dev
 ```
+
+> **Detailed Command Reference**: See [`COMMANDS.md`](./COMMANDS.md) for full ML training, testing, Docker, and troubleshooting commands.
 
 ## Project Structure
 

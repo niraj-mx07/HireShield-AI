@@ -1,19 +1,16 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { Search, Filter, Lock, ArrowRight, ShieldAlert, CheckCircle2, AlertTriangle, AlertCircle, ShieldCheck, Sparkles } from 'lucide-react';
+import { useNavigate, Link } from 'react-router-dom';
+import { Search, Filter, Lock, ArrowRight, ShieldAlert, CheckCircle2, AlertTriangle, AlertCircle, ShieldCheck, Sparkles, FileText, PlusCircle } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
-import { mockHistoryList, getScanCounts } from '../data/mockData';
+import { getScanCounts } from '../data/mockData';
 import { StatCard } from '../components/StatCard';
 
 export const HistoryPage = () => {
-  const { isLoggedIn, toggleAuth, loadReport } = useAuth();
+  const { user, isLoggedIn, userHistory, openAuthModal, loadReport } = useAuth();
   const navigate = useNavigate();
 
   const [searchQuery, setSearchQuery] = useState('');
   const [riskFilter, setRiskFilter] = useState('all');
-
-  // Compute unfiltered totals for top summary cards and filter pill badges
-  const counts = getScanCounts(mockHistoryList);
 
   // Locked Guest Preview State if not logged in
   if (!isLoggedIn) {
@@ -24,26 +21,35 @@ export const HistoryPage = () => {
         </div>
         <div className="space-y-2">
           <h1 className="font-serif text-3xl font-semibold text-ink">
-            Saved History Locked (Guest Mode)
+            Personal Assessment History
           </h1>
           <p className="text-sm text-ink-muted max-w-md mx-auto">
-            Simulate Login to view your full history of past opportunity scans, detailed evidence breakdowns, and saved risk reports.
+            Risk calculation is always free and open. Sign in or create a free candidate account to track your past opportunity scans, export PDF reports, and view historical evidence.
           </p>
         </div>
-        <div>
+        <div className="flex items-center justify-center gap-3">
           <button
-            onClick={toggleAuth}
+            onClick={() => openAuthModal('signup')}
             className="px-8 py-3.5 rounded-full bg-primary text-surface text-xs font-bold shadow-subtle hover:bg-primary-container transition-all"
           >
-            Simulate Login to Access History
+            Create Free Account
+          </button>
+          <button
+            onClick={() => openAuthModal('login')}
+            className="px-6 py-3.5 rounded-full bg-surface border border-ink/10 text-xs font-semibold text-ink hover:bg-surface-2 transition-all"
+          >
+            Sign In
           </button>
         </div>
       </div>
     );
   }
 
+  const historySource = userHistory || [];
+  const counts = getScanCounts(historySource);
+
   // Filter items by search query and risk level
-  const filteredHistory = mockHistoryList.filter((item) => {
+  const filteredHistory = historySource.filter((item) => {
     const matchesSearch =
       item.jobTitle.toLowerCase().includes(searchQuery.toLowerCase()) ||
       item.company.toLowerCase().includes(searchQuery.toLowerCase());
@@ -60,51 +66,29 @@ export const HistoryPage = () => {
   return (
     <div className="max-w-[1200px] mx-auto px-4 sm:px-6 lg:px-8 py-10 space-y-8">
       
-      {/* Header */}
-      <div className="space-y-2">
-        <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-secondary-container text-primary text-xs font-semibold">
-          <Sparkles className="w-3.5 h-3.5" />
-          <span>Historical Analysis Archive</span>
+      {/* Header with Dynamic User Name */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div className="space-y-1">
+          <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-secondary-container text-primary text-xs font-semibold mb-1">
+            <Sparkles className="w-3.5 h-3.5" />
+            <span>Archive • {user?.name || 'Account'}</span>
+          </div>
+          <h1 className="font-serif text-3xl sm:text-4xl font-semibold text-ink">
+            Saved Risk Reports
+          </h1>
+          <p className="text-xs text-ink-muted">
+            Personal archive for <span className="font-semibold text-ink">{user?.email}</span>
+          </p>
         </div>
-        <h1 className="font-serif text-3xl sm:text-4xl font-semibold text-ink">
-          My Saved Risk Reports
-        </h1>
-        <p className="text-sm text-ink-muted">
-          Review previous opportunity scans, re-inspect evidence signals, and manage saved verifications.
-        </p>
-      </div>
 
-      {/* Dynamic Scan Count Summary Cards */}
-      {/* <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-        <StatCard
-          label="Total Scans"
-          value={counts.total}
-          icon={ShieldCheck}
-          badgeColor="bg-secondary-container text-primary"
-          valueColor="text-ink"
-        />
-        <StatCard
-          label="High Risk"
-          value={counts.highRisk}
-          icon={ShieldAlert}
-          badgeColor="bg-risk-high-bg text-risk-high"
-          valueColor="text-risk-high"
-        />
-        <StatCard
-          label="Moderate"
-          value={counts.moderate}
-          icon={AlertCircle}
-          badgeColor="bg-risk-moderate-bg text-risk-moderate"
-          valueColor="text-risk-moderate"
-        />
-        <StatCard
-          label="Verified Safe"
-          value={counts.verifiedSafe}
-          icon={CheckCircle2}
-          badgeColor="bg-risk-low-bg text-risk-low"
-          valueColor="text-risk-low"
-        />
-      </div> */}
+        <Link
+          to="/analyze"
+          className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-primary text-surface text-xs font-semibold shadow-subtle hover:bg-primary-container transition-all self-start sm:self-auto"
+        >
+          <PlusCircle className="w-3.5 h-3.5" />
+          <span>New Opportunity Scan</span>
+        </Link>
+      </div>
 
       {/* Filter & Search Bar */}
       <div className="bg-surface p-4 rounded-3xl shadow-subtle border border-ink/5 flex flex-col sm:flex-row items-center justify-between gap-4">
@@ -117,99 +101,114 @@ export const HistoryPage = () => {
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="Search by job title or company..."
-            className="w-full bg-canvas border border-ink/10 rounded-full pl-10 pr-4 py-2.5 text-xs text-ink placeholder-ink-subtle focus:outline-none focus:border-primary"
+            className="w-full pl-10 pr-4 py-2.5 text-xs bg-canvas border border-ink/10 rounded-2xl text-ink placeholder-ink-subtle focus:outline-none focus:border-primary"
           />
         </div>
 
-        {/* Filter Pills with Live Counts */}
-        <div className="flex items-center gap-1.5 w-full sm:w-auto overflow-x-auto scrollbar-none">
-          <span className="text-xs font-semibold text-ink-subtle mr-1 hidden sm:inline">Filter:</span>
+        {/* Filter Pills */}
+        <div className="flex flex-wrap items-center gap-1.5 w-full sm:w-auto overflow-x-auto pb-1 sm:pb-0">
           {[
-            { id: 'all', label: `All Scans (${counts.total})` },
-            { id: 'high', label: `High Risk (${counts.highRisk})` },
-            { id: 'moderate', label: `Moderate (${counts.moderate})` },
-            { id: 'low', label: `Verified Safe (${counts.verifiedSafe})` },
-          ].map((filter) => (
+            { id: 'all', label: 'All Scans', count: counts.total },
+            { id: 'high', label: 'High Risk', count: counts.highRisk },
+            { id: 'moderate', label: 'Moderate', count: counts.moderate },
+            { id: 'low', label: 'Verified Safe', count: counts.verifiedSafe },
+          ].map((f) => (
             <button
-              key={filter.id}
-              onClick={() => setRiskFilter(filter.id)}
-              className={`px-4 py-2 rounded-full text-xs font-semibold transition-all whitespace-nowrap ${
-                riskFilter === filter.id
-                  ? 'bg-primary text-surface shadow-subtle'
+              key={f.id}
+              onClick={() => setRiskFilter(f.id)}
+              className={`px-3.5 py-1.5 rounded-full text-xs font-semibold transition-all flex items-center gap-1.5 whitespace-nowrap ${
+                riskFilter === f.id
+                  ? 'bg-primary text-surface'
                   : 'bg-surface-2 text-ink-muted hover:text-ink'
               }`}
             >
-              {filter.label}
+              <span>{f.label}</span>
+              <span className={`px-1.5 py-0.2 rounded-full text-[10px] ${riskFilter === f.id ? 'bg-surface/20 text-surface' : 'bg-ink/5 text-ink-subtle'}`}>
+                {f.count}
+              </span>
             </button>
           ))}
         </div>
 
       </div>
 
-
-      {/* History Table / List */}
-      <div className="bg-surface rounded-3xl shadow-floating border border-ink/5 overflow-hidden">
-        {filteredHistory.length === 0 ? (
-          <div className="p-12 text-center text-ink-muted space-y-2">
-            <p className="font-semibold text-sm">No scans match your search or filter criteria.</p>
-            <button
-              onClick={() => { setSearchQuery(''); setRiskFilter('all'); }}
-              className="text-xs text-primary font-bold hover:underline"
+      {/* Scans Table / Empty State */}
+      {filteredHistory.length === 0 ? (
+        <div className="bg-surface rounded-3xl p-12 text-center border border-ink/5 space-y-4 shadow-subtle">
+          <FileText className="w-12 h-12 text-ink-subtle mx-auto" />
+          <div className="space-y-1">
+            <h3 className="font-serif text-lg font-semibold text-ink">
+              {historySource.length === 0 ? 'No Saved Scans Yet' : 'No Matching Scans Found'}
+            </h3>
+            <p className="text-xs text-ink-muted max-w-sm mx-auto">
+              {historySource.length === 0
+                ? 'Scan an opportunity on the Analyze page to automatically archive your risk reports and evidence.'
+                : 'Try adjusting your search terms or risk filter.'}
+            </p>
+          </div>
+          {historySource.length === 0 && (
+            <Link
+              to="/analyze"
+              className="inline-flex items-center gap-2 px-6 py-2.5 rounded-full bg-primary text-surface text-xs font-bold shadow-subtle hover:bg-primary-container"
             >
-              Reset Filters
-            </button>
+              <PlusCircle className="w-4 h-4" />
+              <span>Scan Your First Job Listing</span>
+            </Link>
+          )}
+        </div>
+      ) : (
+        <div className="bg-surface rounded-3xl shadow-subtle border border-ink/5 overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse">
+              <thead>
+                <tr className="border-b border-ink/5 bg-surface-2/40 text-[11px] font-semibold uppercase tracking-wider text-ink-subtle">
+                  <th className="py-4 px-6">Opportunity & Role</th>
+                  <th className="py-4 px-6">Company</th>
+                  <th className="py-4 px-6">Scan Date</th>
+                  <th className="py-4 px-6">Risk Score</th>
+                  <th className="py-4 px-6">Recommendation</th>
+                  <th className="py-4 px-6 text-right">Action</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-ink/5 text-xs font-medium text-ink">
+                {filteredHistory.map((item) => {
+                  const isHigh = item.riskLevel === 'high';
+                  const isMod = item.riskLevel === 'moderate';
+                  const badgeBg = isHigh ? 'bg-risk-high-bg text-risk-high' : isMod ? 'bg-risk-moderate-bg text-risk-moderate' : 'bg-risk-low-bg text-risk-low';
+
+                  return (
+                    <tr
+                      key={item.id}
+                      onClick={() => handleSelectReport(item)}
+                      className="hover:bg-surface-2/50 transition-colors cursor-pointer group"
+                    >
+                      <td className="py-4 px-6 font-semibold group-hover:text-primary transition-colors">
+                        {item.jobTitle}
+                      </td>
+                      <td className="py-4 px-6 text-ink-muted">{item.company}</td>
+                      <td className="py-4 px-6 text-ink-subtle">{item.date}</td>
+                      <td className="py-4 px-6">
+                        <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold ${badgeBg}`}>
+                          {item.riskScore} / 100
+                        </span>
+                      </td>
+                      <td className="py-4 px-6">
+                        <span className="font-semibold text-[11px]">{item.recommendation}</span>
+                      </td>
+                      <td className="py-4 px-6 text-right">
+                        <span className="inline-flex items-center gap-1 text-primary text-xs font-semibold group-hover:underline">
+                          <span>View Report</span>
+                          <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
+                        </span>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
           </div>
-        ) : (
-          <div className="divide-y divide-ink/5">
-            {filteredHistory.map((item) => (
-              <div
-                key={item.id}
-                onClick={() => handleSelectReport(item)}
-                className="p-6 flex flex-col md:flex-row md:items-center justify-between gap-4 hover:bg-surface-2/70 transition-all cursor-pointer group"
-              >
-                <div className="space-y-1">
-                  <div className="flex items-center gap-3">
-                    <h3 className="font-serif text-lg font-semibold text-ink group-hover:text-primary transition-colors">
-                      {item.jobTitle}
-                    </h3>
-                    <span className="text-xs text-ink-subtle hidden sm:inline">•</span>
-                    <span className="text-xs font-semibold text-ink-muted">{item.company}</span>
-                  </div>
-                  <div className="flex flex-wrap items-center gap-3 text-xs text-ink-subtle">
-                    <span>ID: {item.id}</span>
-                    <span>•</span>
-                    <span>Scanned: {item.scanDate}</span>
-                    <span>•</span>
-                    <span>Input: {item.type}</span>
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-4 self-end md:self-auto">
-                  <div className="flex items-center gap-3">
-                    <span className="font-serif text-xl font-semibold text-ink">
-                      {item.score}<span className="text-xs text-ink-subtle">/100</span>
-                    </span>
-
-                    <span className={`px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider ${
-                      item.riskLevel === 'high'
-                        ? 'bg-risk-high-bg text-risk-high'
-                        : item.riskLevel === 'moderate'
-                        ? 'bg-risk-moderate-bg text-risk-moderate'
-                        : 'bg-risk-low-bg text-risk-low'
-                    }`}>
-                      {item.verdict}
-                    </span>
-                  </div>
-
-                  <div className="w-8 h-8 rounded-full bg-surface-2 group-hover:bg-primary group-hover:text-surface flex items-center justify-center transition-all text-ink-subtle">
-                    <ArrowRight className="w-4 h-4" />
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
+        </div>
+      )}
 
     </div>
   );

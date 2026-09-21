@@ -1,17 +1,14 @@
 import React from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { ShieldCheck, ShieldAlert, CheckCircle2, AlertCircle, Clock, Sparkles, PlusCircle, ArrowRight, Lock } from 'lucide-react';
+import { ShieldCheck, ShieldAlert, CheckCircle2, AlertCircle, Clock, Sparkles, PlusCircle, ArrowRight, Lock, User, FileText } from 'lucide-react';
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, Legend, CartesianGrid } from 'recharts';
 import { useAuth } from '../context/AuthContext';
 import { StatCard } from '../components/StatCard';
-import { mockWeeklyChartData, mockHistoryList, getScanCounts } from '../data/mockData';
+import { getScanCounts } from '../data/mockData';
 
 export const DashboardPage = () => {
-  const { isLoggedIn, toggleAuth, loadReport } = useAuth();
+  const { user, isLoggedIn, userHistory, openAuthModal, loadReport } = useAuth();
   const navigate = useNavigate();
-
-  // Compute live scan counts from mockHistoryList
-  const counts = getScanCounts(mockHistoryList);
 
   // Locked Guest Preview State if not logged in
   if (!isLoggedIn) {
@@ -22,26 +19,45 @@ export const DashboardPage = () => {
         </div>
         <div className="space-y-2">
           <h1 className="font-serif text-3xl font-semibold text-ink">
-            Dashboard Locked (Guest Mode)
+            Personal Security & Threat Dashboard
           </h1>
           <p className="text-sm text-ink-muted max-w-md mx-auto">
-            Simulate Login to preview your personal scam prevention dashboard, weekly scan analytics, and risk mitigation trends.
+            Risk calculation is always free and open. Sign in or create a free candidate account to view your personal protection trends, weekly scan charts, and categorized threat intelligence.
           </p>
         </div>
-        <div>
+        <div className="flex items-center justify-center gap-3">
           <button
-            onClick={toggleAuth}
+            onClick={() => openAuthModal('signup')}
             className="px-8 py-3.5 rounded-full bg-primary text-surface text-xs font-bold shadow-subtle hover:bg-primary-container transition-all"
           >
-            Simulate Login to Access Dashboard
+            Create Free Account
+          </button>
+          <button
+            onClick={() => openAuthModal('login')}
+            className="px-6 py-3.5 rounded-full bg-surface border border-ink/10 text-xs font-semibold text-ink hover:bg-surface-2 transition-all"
+          >
+            Sign In
           </button>
         </div>
       </div>
     );
   }
 
-  // Authenticated State View
-  const recentThree = mockHistoryList.slice(0, 3);
+  // Live scan counts from this specific user's history
+  const historyList = userHistory || [];
+  const counts = getScanCounts(historyList);
+  const recentThree = historyList.slice(0, 3);
+
+  // Dynamic Chart Data based on user scans
+  const chartData = [
+    { day: 'Mon', highRisk: 0, safe: 0 },
+    { day: 'Tue', highRisk: 0, safe: 0 },
+    { day: 'Wed', highRisk: 0, safe: 0 },
+    { day: 'Thu', highRisk: 0, safe: 0 },
+    { day: 'Fri', highRisk: 0, safe: 0 },
+    { day: 'Sat', highRisk: counts.highRisk, safe: counts.verifiedSafe },
+    { day: 'Sun', highRisk: 0, safe: counts.moderate },
+  ];
 
   const handleRowClick = (item) => {
     loadReport(item.payload);
@@ -51,18 +67,18 @@ export const DashboardPage = () => {
   return (
     <div className="max-w-[1200px] mx-auto px-4 sm:px-6 lg:px-8 py-10 space-y-10">
       
-      {/* Welcome Header */}
+      {/* Welcome Header with Dynamic User Name */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-secondary-container text-primary text-xs font-semibold mb-2">
             <Sparkles className="w-3.5 h-3.5" />
-            <span>Authenticated Protection Active</span>
+            <span>Active Account • {user?.email}</span>
           </div>
           <h1 className="font-serif text-3xl sm:text-4xl font-semibold text-ink">
-            Welcome back, Nihar
+            Welcome back, {user?.name || 'Candidate'}
           </h1>
           <p className="text-xs text-ink-muted mt-1">
-            Here is your job application risk summary and recent scans.
+            Here is your personal job opportunity risk summary and recent scans.
           </p>
         </div>
 
@@ -75,13 +91,13 @@ export const DashboardPage = () => {
         </Link>
       </div>
 
-      {/* StatCards Row - Fully Synchronized with getScanCounts */}
+      {/* StatCards Row - Computed Dynamically for THIS User */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
         <StatCard
           label="Total Scans"
           value={counts.total}
           icon={ShieldCheck}
-          trend="+3 this week"
+          trend={counts.total > 0 ? `${counts.total} recorded` : "0 recorded"}
           badgeColor="bg-secondary-container text-primary"
           valueColor="text-ink"
         />
@@ -89,15 +105,15 @@ export const DashboardPage = () => {
           label="High Risk Caught"
           value={counts.highRisk}
           icon={ShieldAlert}
-          trend="Protected from loss"
+          trend={counts.highRisk > 0 ? "Flagged red" : "None detected"}
           badgeColor="bg-risk-high-bg text-risk-high"
           valueColor="text-risk-high"
         />
         <StatCard
-          label="Moderate Caution"
+          label="Moderate Risk (Hold)"
           value={counts.moderate}
           icon={AlertCircle}
-          trend="Review recommended"
+          trend={counts.moderate > 0 ? "Review needed" : "Clean"}
           badgeColor="bg-risk-moderate-bg text-risk-moderate"
           valueColor="text-risk-moderate"
         />
@@ -105,91 +121,114 @@ export const DashboardPage = () => {
           label="Verified Safe"
           value={counts.verifiedSafe}
           icon={CheckCircle2}
-          trend="100% verified safe"
+          trend={counts.verifiedSafe > 0 ? "Safe to apply" : "Ready to scan"}
           badgeColor="bg-risk-low-bg text-risk-low"
           valueColor="text-risk-low"
         />
       </div>
 
-
-      {/* Recharts Chart Section */}
-      <div className="bg-surface rounded-3xl p-6 sm:p-8 shadow-floating border border-ink/5 space-y-6">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-ink/5 pb-4">
-          <div>
-            <h2 className="font-serif text-xl font-semibold text-ink">
-              Job Offer Scans & Scam Distribution
-            </h2>
-            <p className="text-xs text-ink-muted">
-              Weekly breakdown of high-risk scams, moderate caution alerts, and verified safe listings.
-            </p>
-          </div>
-          <div className="text-xs font-semibold text-ink-subtle">
-            Last 6 Weeks
-          </div>
-        </div>
-
-        <div className="h-72 w-full pt-2">
-          <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={mockWeeklyChartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#f6f3f2" vertical={false} />
-              <XAxis dataKey="week" stroke="#717970" fontSize={11} tickLine={false} />
-              <YAxis stroke="#717970" fontSize={11} tickLine={false} allowDecimals={false} />
-              <Tooltip
-                contentStyle={{ backgroundColor: '#ffffff', borderRadius: '12px', border: '1px solid rgba(28,27,27,0.08)', fontSize: '12px' }}
-              />
-              <Legend wrapperStyle={{ fontSize: '12px', paddingTop: '10px' }} />
-              <Bar dataKey="highRisk" name="High Risk Scam" fill="#ba1a1a" radius={[6, 6, 0, 0]} />
-              <Bar dataKey="moderate" name="Moderate Caution" fill="#b45309" radius={[6, 6, 0, 0]} />
-              <Bar dataKey="safe" name="Verified Safe" fill="#1e5631" radius={[6, 6, 0, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
-      </div>
-
-      {/* Recent Activity Section */}
-      <div className="bg-surface rounded-3xl p-6 sm:p-8 shadow-subtle border border-ink/5 space-y-6">
-        <div className="flex items-center justify-between border-b border-ink/5 pb-4">
-          <h2 className="font-serif text-xl font-semibold text-ink">
-            Recent Opportunity Scans
-          </h2>
-          <Link to="/history" className="text-xs font-semibold text-primary hover:underline flex items-center gap-1">
-            <span>View All Saved History</span>
-            <ArrowRight className="w-3.5 h-3.5" />
-          </Link>
-        </div>
-
-        <div className="divide-y divide-ink/5">
-          {recentThree.map((item) => (
-            <div
-              key={item.id}
-              onClick={() => handleRowClick(item)}
-              className="py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4 hover:bg-surface-2/60 px-4 rounded-2xl cursor-pointer transition-all"
-            >
-              <div className="space-y-1">
-                <div className="flex items-center gap-2">
-                  <span className="text-sm font-semibold text-ink">{item.jobTitle}</span>
-                  <span className="text-xs text-ink-subtle">• {item.company}</span>
-                </div>
-                <div className="text-xs text-ink-muted">
-                  Scanned on {item.scanDate} • Input: {item.type}
-                </div>
-              </div>
-
-              <div className="flex items-center gap-4">
-                <span className={`px-3 py-1 rounded-full text-xs font-bold ${
-                  item.riskLevel === 'high'
-                    ? 'bg-risk-high-bg text-risk-high'
-                    : item.riskLevel === 'moderate'
-                    ? 'bg-risk-moderate-bg text-risk-moderate'
-                    : 'bg-risk-low-bg text-risk-low'
-                }`}>
-                  Score {item.score} • {item.verdict}
-                </span>
-                <ArrowRight className="w-4 h-4 text-ink-subtle hidden sm:block" />
-              </div>
+      {/* Main Grid: Chart & Recent Scans */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+        
+        {/* Left: Weekly Scan Trend Chart */}
+        <div className="lg:col-span-7 bg-surface rounded-3xl p-6 sm:p-8 border border-ink/5 shadow-subtle space-y-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="font-serif text-lg font-semibold text-ink">
+                Scan Activity & Threats Flagged
+              </h2>
+              <p className="text-xs text-ink-muted">Weekly detection distribution</p>
             </div>
-          ))}
+          </div>
+
+          <div className="h-[280px] w-full">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E2E8F0" opacity={0.6} />
+                <XAxis dataKey="day" axisLine={false} tickLine={false} tick={{ fill: '#64748B', fontSize: 12 }} />
+                <YAxis axisLine={false} tickLine={false} tick={{ fill: '#64748B', fontSize: 12 }} allowDecimals={false} />
+                <Tooltip
+                  cursor={{ fill: '#F1F5F9', opacity: 0.5 }}
+                  contentStyle={{ backgroundColor: '#0F172A', borderRadius: '12px', border: 'none', color: '#FFF', fontSize: '12px' }}
+                />
+                <Legend iconType="circle" wrapperStyle={{ paddingTop: '10px', fontSize: '12px' }} />
+                <Bar dataKey="highRisk" name="High Risk Scams" fill="#EF4444" radius={[6, 6, 0, 0]} />
+                <Bar dataKey="safe" name="Safe / Verified" fill="#22C55E" radius={[6, 6, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
         </div>
+
+        {/* Right: Recent Scans List */}
+        <div className="lg:col-span-5 bg-surface rounded-3xl p-6 sm:p-8 border border-ink/5 shadow-subtle flex flex-col justify-between space-y-6">
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <h2 className="font-serif text-lg font-semibold text-ink">Recent Scans</h2>
+              <Link to="/history" className="text-xs font-semibold text-primary hover:underline">
+                View All ({historyList.length})
+              </Link>
+            </div>
+
+            {historyList.length === 0 ? (
+              <div className="py-12 text-center space-y-3">
+                <FileText className="w-10 h-10 text-ink-subtle mx-auto" />
+                <p className="text-xs font-semibold text-ink">No Scans Recorded Yet</p>
+                <p className="text-[11px] text-ink-muted max-w-xs mx-auto">
+                  Run your first opportunity scan on the Analyze page to see it logged here.
+                </p>
+                <Link
+                  to="/analyze"
+                  className="inline-block px-4 py-2 rounded-full bg-primary text-surface text-xs font-semibold shadow-subtle"
+                >
+                  Scan Now
+                </Link>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {recentThree.map((item) => {
+                  const isHigh = item.riskLevel === 'high';
+                  const isMod = item.riskLevel === 'moderate';
+                  const badgeBg = isHigh ? 'bg-risk-high-bg text-risk-high' : isMod ? 'bg-risk-moderate-bg text-risk-moderate' : 'bg-risk-low-bg text-risk-low';
+
+                  return (
+                    <div
+                      key={item.id}
+                      onClick={() => handleRowClick(item)}
+                      className="p-3.5 rounded-2xl bg-surface-2/60 hover:bg-surface-2 border border-ink/5 transition-all cursor-pointer flex items-center justify-between gap-3 group"
+                    >
+                      <div className="min-w-0">
+                        <p className="text-xs font-semibold text-ink truncate group-hover:text-primary transition-colors">
+                          {item.jobTitle}
+                        </p>
+                        <p className="text-[11px] text-ink-muted truncate">
+                          {item.company} • {item.date}
+                        </p>
+                      </div>
+
+                      <div className="flex items-center gap-2 flex-shrink-0">
+                        <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold ${badgeBg}`}>
+                          {item.riskScore} pts
+                        </span>
+                        <ArrowRight className="w-3.5 h-3.5 text-ink-subtle group-hover:translate-x-0.5 transition-transform" />
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          <div className="pt-4 border-t border-ink/5">
+            <Link
+              to="/analyze"
+              className="w-full py-3 rounded-2xl bg-surface-2 hover:bg-surface-2/80 text-ink text-xs font-semibold flex items-center justify-center gap-2 transition-all border border-ink/5"
+            >
+              <PlusCircle className="w-4 h-4 text-primary" />
+              <span>Verify Another Listing</span>
+            </Link>
+          </div>
+        </div>
+
       </div>
 
     </div>

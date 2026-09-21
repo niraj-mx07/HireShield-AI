@@ -1,13 +1,14 @@
 import React, { useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { ShieldCheck, Menu, X, User, LogOut, Search, Sparkles } from 'lucide-react';
+import { ShieldCheck, Menu, X, User, LogOut, Sparkles, ChevronDown, CheckCircle2 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
 export const Header = () => {
-  const { isLoggedIn, toggleAuth } = useAuth();
+  const { user, isLoggedIn, logout, openAuthModal } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [userDropdownOpen, setUserDropdownOpen] = useState(false);
 
   const isActive = (path) => location.pathname === path;
 
@@ -20,11 +21,12 @@ export const Header = () => {
 
   const handleNavClick = (path) => {
     setMobileMenuOpen(false);
+    setUserDropdownOpen(false);
     navigate(path);
   };
 
   return (
-    <header className="sticky top-0 z-50 bg-surface/90 backdrop-blur-md border-b border-ink/5 transition-all">
+    <header className="sticky top-0 z-40 bg-surface/90 backdrop-blur-md border-b border-ink/5 transition-all">
       <div className="max-w-[1200px] mx-auto px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between">
         
         {/* Brand Logo */}
@@ -59,35 +61,81 @@ export const Header = () => {
           ))}
         </nav>
 
-        {/* Desktop Action & Mock Auth Toggle */}
+        {/* Desktop Action & Auth State */}
         <div className="hidden lg:flex items-center gap-3">
-          {/* Auth Toggle Button */}
-          <button
-            onClick={toggleAuth}
-            className={`flex items-center gap-2 px-3.5 py-1.5 rounded-full text-xs font-semibold border transition-all ${
-              isLoggedIn
-                ? 'bg-secondary-container text-primary border-primary/20 hover:bg-secondary-container/80'
-                : 'bg-surface-2 text-ink-muted border-ink/10 hover:text-ink'
-            }`}
-            title="Toggle mock user login state"
-          >
-            {isLoggedIn ? (
-              <>
-                <span className="w-2 h-2 rounded-full bg-primary animate-pulse" />
-                <User className="w-3.5 h-3.5" />
-                <span>Logged In</span>
-                <span className="text-[10px] opacity-75 underline ml-1">(Logout)</span>
-              </>
-            ) : (
-              <>
-                <span className="w-2 h-2 rounded-full bg-ink-subtle" />
-                <span>Guest Mode</span>
-                <span className="text-[10px] text-primary font-bold underline ml-1">(Simulate Login)</span>
-              </>
-            )}
-          </button>
+          {isLoggedIn ? (
+            /* Logged-In User Profile Menu */
+            <div className="relative">
+              <button
+                onClick={() => setUserDropdownOpen(!userDropdownOpen)}
+                className="flex items-center gap-2.5 px-3.5 py-1.5 rounded-full bg-surface-2 border border-ink/10 hover:bg-surface transition-all text-xs font-semibold text-ink"
+              >
+                <div className="w-6 h-6 rounded-full bg-primary text-surface flex items-center justify-center text-xs font-bold">
+                  {user?.avatar || 'U'}
+                </div>
+                <span>{user?.name || 'Account'}</span>
+                <ChevronDown className="w-3.5 h-3.5 text-ink-subtle" />
+              </button>
 
-          {/* Primary CTA */}
+              {userDropdownOpen && (
+                <div className="absolute right-0 mt-2 w-56 bg-surface border border-ink/10 rounded-2xl shadow-floating py-2 z-50 animate-in fade-in duration-150">
+                  <div className="px-4 py-2 border-b border-ink/5">
+                    <p className="text-xs font-semibold text-ink truncate">{user?.name}</p>
+                    <p className="text-[11px] text-ink-subtle truncate">{user?.email}</p>
+                    <span className="inline-block mt-1 px-2 py-0.5 rounded-full bg-secondary-container text-primary text-[10px] font-semibold">
+                      Candidate Account
+                    </span>
+                  </div>
+
+                  <Link
+                    to="/history"
+                    onClick={() => setUserDropdownOpen(false)}
+                    className="flex items-center gap-2 px-4 py-2 text-xs text-ink-muted hover:text-ink hover:bg-surface-2"
+                  >
+                    <span>Assessment History</span>
+                  </Link>
+                  <Link
+                    to="/dashboard"
+                    onClick={() => setUserDropdownOpen(false)}
+                    className="flex items-center gap-2 px-4 py-2 text-xs text-ink-muted hover:text-ink hover:bg-surface-2"
+                  >
+                    <span>Threat Dashboard</span>
+                  </Link>
+
+                  <div className="pt-1 border-t border-ink/5">
+                    <button
+                      onClick={() => {
+                        logout();
+                        setUserDropdownOpen(false);
+                      }}
+                      className="w-full flex items-center gap-2 px-4 py-2 text-xs text-risk-high hover:bg-risk-high-bg transition-colors text-left"
+                    >
+                      <LogOut className="w-3.5 h-3.5" />
+                      <span>Sign Out</span>
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          ) : (
+            /* Guest Mode Auth Buttons */
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => openAuthModal('login')}
+                className="px-4 py-2 rounded-full text-xs font-semibold text-ink-muted hover:text-ink hover:bg-surface-2 transition-all"
+              >
+                Sign In
+              </button>
+              <button
+                onClick={() => openAuthModal('signup')}
+                className="px-4 py-2 rounded-full bg-surface-2 border border-ink/10 text-xs font-semibold text-ink hover:bg-surface hover:border-primary/30 transition-all"
+              >
+                Sign Up
+              </button>
+            </div>
+          )}
+
+          {/* Primary Action Button */}
           <Link
             to="/analyze"
             className="px-5 py-2.5 rounded-full bg-primary text-surface text-xs font-semibold shadow-subtle hover:bg-primary-container transition-all flex items-center gap-1.5"
@@ -129,19 +177,49 @@ export const Header = () => {
           </div>
 
           <div className="pt-4 border-t border-ink/5 flex flex-col gap-3">
-            <button
-              onClick={() => {
-                toggleAuth();
-                setMobileMenuOpen(false);
-              }}
-              className={`w-full flex items-center justify-center gap-2 py-3 rounded-full text-xs font-semibold border ${
-                isLoggedIn
-                  ? 'bg-secondary-container text-primary border-primary/20'
-                  : 'bg-surface-2 text-ink-muted border-ink/10'
-              }`}
-            >
-              {isLoggedIn ? 'Simulate Logout (Currently Logged In)' : 'Simulate Login (Currently Guest)'}
-            </button>
+            {isLoggedIn ? (
+              <div className="flex items-center justify-between p-3 rounded-2xl bg-surface-2">
+                <div className="flex items-center gap-2">
+                  <div className="w-7 h-7 rounded-full bg-primary text-surface flex items-center justify-center text-xs font-bold">
+                    {user?.avatar || 'U'}
+                  </div>
+                  <div className="text-xs">
+                    <p className="font-semibold text-ink">{user?.name}</p>
+                    <p className="text-ink-subtle">{user?.email}</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => {
+                    logout();
+                    setMobileMenuOpen(false);
+                  }}
+                  className="p-2 text-risk-high hover:bg-risk-high-bg rounded-full text-xs font-semibold"
+                >
+                  <LogOut className="w-4 h-4" />
+                </button>
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  onClick={() => {
+                    openAuthModal('login');
+                    setMobileMenuOpen(false);
+                  }}
+                  className="py-2.5 rounded-full bg-surface-2 border border-ink/10 text-xs font-semibold text-ink text-center"
+                >
+                  Sign In
+                </button>
+                <button
+                  onClick={() => {
+                    openAuthModal('signup');
+                    setMobileMenuOpen(false);
+                  }}
+                  className="py-2.5 rounded-full bg-primary text-surface text-xs font-semibold text-center"
+                >
+                  Create Account
+                </button>
+              </div>
+            )}
 
             <button
               onClick={() => handleNavClick('/analyze')}

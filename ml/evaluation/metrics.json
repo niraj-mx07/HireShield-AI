@@ -14,7 +14,7 @@
       ]
     ],
     "classification_report": "              precision    recall  f1-score   support\n\n        real       0.99      0.99      0.99      3148\n       fraud       0.86      0.90      0.88       218\n\n    accuracy                           0.98      3366\n   macro avg       0.93      0.94      0.94      3366\nweighted avg       0.98      0.98      0.98      3366\n",
-    "train_time_seconds": 0.47
+    "train_time_seconds": 0.5
   },
   "random_forest": {
     "precision_fraud": 0.979,
@@ -31,7 +31,7 @@
       ]
     ],
     "classification_report": "              precision    recall  f1-score   support\n\n        real       0.98      1.00      0.99      3148\n       fraud       0.98      0.64      0.78       218\n\n    accuracy                           0.98      3366\n   macro avg       0.98      0.82      0.88      3366\nweighted avg       0.98      0.98      0.97      3366\n",
-    "train_time_seconds": 6.86
+    "train_time_seconds": 6.81
   },
   "_best_model": "logistic_regression"
 }
