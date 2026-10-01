@@ -84,6 +84,27 @@ sequenceDiagram
     FE-->>User: Risk score and evidence breakdown
 ```
 
+## External Verification and Entity Extraction
+
+Two backend services implement the "verification via retrieval" capability. Both are consent-gated and exception-safe: a failure degrades the assessment instead of failing it.
+
+| Service | Module | Behaviour |
+| --- | --- | --- |
+| Public page retrieval | `app/services/web_retrieval.py` | Fetches the submitted listing URL (HTML only, size- and timeout-capped), rejects non-HTTP(S) schemes, and blocks loopback/private/link-local/metadata hosts (SSRF guard). Parses the title, meta description, visible text, outbound link domains, `JobPosting` JSON-LD, apply/resume forms, and payment keywords. Falls back to a dependency-free regex parser when `beautifulsoup4` is unavailable. |
+| Named-entity extraction | `app/services/nlp_entities.py` | Two layers: (1) deterministic regex identifiers (email, URL, phone, UPI, crypto wallet, money) and (2) contextual NER resolved as spaCy → Hugging Face Transformers → regex-only. Canonical labels include `PERSON`, `ORG`, `LOCATION`, `DATE`, `MONEY`, `EMAIL`, `PHONE`, `URL`, `UPI_ID`, `CRYPTO_WALLET`. |
+
+The pipeline performs **one** page fetch per assessment when `consent_for_external_lookups=true` and retrieval is enabled, then shares the parsed page with the job-content analyzer (page text as an extra ML input) and the company-verification analyzer (live payment-prompt, job-posting, and apply-form signals). Trusted job boards are never re-fetched because they already host the listing. Extracted entities are returned to the caller in `AssessmentResponse.entities` and are never persisted.
+
+| Environment variable | Default | Purpose |
+| --- | --- | --- |
+| `WEB_RETRIEVAL_ENABLED` | `true` | Master switch for external page retrieval. |
+| `WEB_RETRIEVAL_TIMEOUT` | `6.0` | Per-request timeout in seconds. |
+| `WEB_RETRIEVAL_MAX_BYTES` | `524288` | Response size cap (512 KB). |
+| `NLP_NER_ENABLED` | `true` | Enable contextual NER; regex identifiers always run. |
+| `TRANSFORMERS_NER_ENABLED` | `true` | Allow the Hugging Face fallback when spaCy is unavailable. |
+| `SPACY_MODEL` | `en_core_web_sm` | spaCy pipeline used for NER. |
+| `TRANSFORMERS_NER_MODEL` | `dslim/bert-base-NER` | Token-classification model for the Transformer fallback. |
+
 ## Core Scoring and Intelligence Engine
 
 HireShield-AI uses a hybrid detector: ML prediction, deterministic rules, URL analysis, company/recruiter verification, document analysis, and cross-source information consistency are combined in a single Risk Engine. Model output is one signal among several; it does not override high-severity evidence such as advance-payment demands or a verified domain mismatch.
@@ -109,7 +130,7 @@ Thresholds are policy configuration, not fixed truth. Missing evidence reduces c
 
 ## Tech Stack
 
-The repository is currently documentation-only; the table describes the intended implementation stack and should be updated when components are added.
+The table below reflects the implemented stack; optional extras are marked and can be omitted from a minimal install.
 
 | Layer | Intended technology | Responsibility |
 | --- | --- | --- |
@@ -117,8 +138,8 @@ The repository is currently documentation-only; the table describes the intended
 | Backend API | FastAPI or Node.js | Assessment orchestration and API endpoints |
 | Database | MongoDB or PostgreSQL | Assessments, extracted entities, evidence, audit metadata |
 | ML models | Logistic Regression, Random Forest, SVM; transformer classifier as stretch goal | Baseline and advanced job-scam classification |
-| NLP | spaCy, Hugging Face Transformers | Entity extraction, text classification, signal detection |
-| Verification | `requests`, BeautifulSoup, or equivalent | Public-page retrieval and structured verification checks |
+| NLP | spaCy (`en_core_web_sm`); optional Hugging Face Transformers | Entity extraction (regex identifiers + contextual NER), text classification, signal detection |
+| Verification | `requests` + BeautifulSoup (stdlib regex fallback) | Public-page retrieval and structured verification checks |
 | Deployment | Vercel (frontend), Render or Railway (backend) | Managed web deployment |
 
 ## Datasets and Knowledge Bases
@@ -159,6 +180,11 @@ cd backend
 cp .env.example .env
 # Set DATABASE_URL, CORS_ORIGINS, and any verification-provider credentials in .env
 pip install -r requirements.txt
+
+# Optional: contextual NLP entity extraction (spaCy model + optional Transformers).
+# The API runs without these — NER degrades to regex identifiers, and
+# WEB_RETRIEVAL_ENABLED / NLP_NER_ENABLED can disable the features entirely.
+pip install -r requirements-nlp.txt
 ```
 
 ### 3. Configure and install the frontend
@@ -200,7 +226,7 @@ HireShield-AI/
 │   │   ├── api/                # /api/v1 routes
 │   │   ├── analyzers/          # 7 category risk analyzers
 │   │   ├── models/             # Pydantic schemas
-│   │   ├── services/           # pipeline, risk engine, ML model loader
+│   │   ├── services/           # pipeline, risk engine, ML loader, web retrieval, NER
 │   │   ├── utils/              # privacy/redaction helpers
 │   │   ├── config.py
 │   │   ├── database.py
@@ -210,6 +236,7 @@ HireShield-AI/
 │   ├── tests/                  # pytest suite
 │   ├── Dockerfile
 │   ├── requirements.txt
+│   ├── requirements-nlp.txt    # Optional spaCy / Transformers NER providers
 │   └── .env.example
 ├── frontend/                   # React + Vite SPA
 │   ├── src/
@@ -248,6 +275,8 @@ HireShield-AI/
 - Record evidence provenance, retrieval time, and rule/model version for auditability.
 - Do not make unqualified claims that a company or person is fraudulent. Present risk indicators, verification limits, and supporting evidence.
 - Require explicit user action before external lookups when submitted content may contain personal information.
+- Extracted entities are returned to the caller only and are never written to the assessment record; the pipeline performs at most one consent-gated page retrieval per assessment.
+- External retrieval is restricted to public HTTP(S) hosts — a failed or blocked fetch is reported as *unavailable*, never as evidence of fraud.
 
 ## Team
 

@@ -24,3 +24,15 @@ pytest-asyncio==0.23.7
 # --- ML Inference ---
 scikit-learn==1.5.0
 joblib==1.4.2
+
+# --- Web Page Retrieval & Parsing (backend/app/services/web_retrieval.py) ---
+beautifulsoup4==4.15.0
+
+# --- Document Text Extraction (backend/app/analyzers/document_analysis.py) ---
+pypdf==6.19.0
+
+# --- Optional NLP entity extraction ---
+# The heavy NER providers (spaCy / Hugging Face Transformers) are optional and
+# kept out of the base install so the API boots without them.  The NER service
+# degrades gracefully to deterministic regex identifiers when they are absent.
+# Install them with:  pip install -r requirements-nlp.txt

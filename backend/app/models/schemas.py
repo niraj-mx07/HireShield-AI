@@ -126,6 +126,19 @@ class CategoryResult(BaseModel):
     analyzed: bool = Field(False, description="True when real analysis ran, False for stubs")
 
 
+class ExtractedEntity(BaseModel):
+    """A named entity extracted from submitted or retrieved text.
+
+    Entities are returned to the submitting user only and are **never**
+    persisted to the database, so raw PII (emails, phone numbers) is not
+    stored at rest.
+    """
+    text: str = Field(..., description="Surface form of the entity")
+    label: str = Field(..., description="Entity label, e.g. EMAIL, PERSON, ORG")
+    source: str = Field("", description="Extractor that produced it: regex, spacy, or transformers")
+    confidence: float = Field(0.0, ge=0.0, le=1.0, description="Extraction confidence (0.0–1.0)")
+
+
 # ---------------------------------------------------------------------------
 # Response schemas
 # ---------------------------------------------------------------------------
@@ -146,6 +159,10 @@ class AssessmentResponse(BaseModel):
     category_scores: List[CategoryScore] = Field(default_factory=list)
     risk_factors: List[RiskFactor] = Field(default_factory=list)
     active_inputs: List[str] = Field(default_factory=list, description="Inputs supplied by the user")
+    entities: List[ExtractedEntity] = Field(
+        default_factory=list,
+        description="Named entities extracted from the submitted / retrieved text (not persisted)",
+    )
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 
