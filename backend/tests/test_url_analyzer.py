@@ -48,3 +48,25 @@ async def test_empty_url_unanalyzed():
     """Test empty URL returns analyzed=False."""
     result = await url_analysis.analyze(url="")
     assert result.analyzed is False
+
+
+@pytest.mark.asyncio
+async def test_newly_registered_domain_flagged(monkeypatch):
+    """Test newly registered domain (< 60 days old) triggers high severity via RDAP."""
+    async def mock_rdap(domain):
+        return {
+            "root_domain": "scamcareers-fake.com",
+            "created_date": "2026-09-20",
+            "age_days": 10,
+        }
+
+    monkeypatch.setattr(url_analysis, "_check_domain_rdap", mock_rdap)
+
+    result = await url_analysis.analyze(
+        url="https://scamcareers-fake.com/job/123",
+        consent=True,
+    )
+    assert result.analyzed is True
+    assert result.score >= 45.0
+    assert any("newly registered" in rf.description.lower() for rf in result.risk_factors)
+

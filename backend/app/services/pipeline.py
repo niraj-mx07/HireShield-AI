@@ -32,6 +32,8 @@ from app.models.schemas import (
     AssessmentStatus,
     CategoryResult,
     RiskCategory,
+    RiskFactor,
+    Severity,
 )
 from app.services.risk_engine import score_assessment
 from app.utils.privacy import build_input_summary, redact_pii
@@ -66,6 +68,8 @@ async def run_assessment(
             company_name=request.company_name,
             recruiter_email=request.recruiter_email,
             recruiter_name=request.recruiter_name,
+            recruiter_phone=request.recruiter_phone,
+            message=request.message,
             has_document=document_bytes is not None,
         ))),
     )
@@ -80,6 +84,8 @@ async def run_assessment(
         company_name=request.company_name,
         recruiter_email=request.recruiter_email,
         recruiter_name=request.recruiter_name,
+        recruiter_phone=request.recruiter_phone,
+        message=request.message,
         has_document=document_bytes is not None,
     )
     record = AssessmentRecord(id=assessment_id, input_summary=input_summary)
@@ -136,9 +142,48 @@ async def run_assessment(
     )
 
     # ------------------------------------------------------------------
+    # 2b. Cross-reference community scam blacklist
+    # ------------------------------------------------------------------
+    try:
+        query_candidates = [
+            v.strip().lower() for v in (
+                request.recruiter_email,
+                request.recruiter_phone,
+                request.url,
+            ) if v and v.strip()
+        ]
+        if query_candidates:
+            matched_reports = await db.scam_reports.find(
+                {"indicator_value": {"$in": query_candidates}}
+            ).to_list(length=5)
+            if matched_reports:
+                rep = matched_reports[0]
+                results[RiskCategory.RECRUITER_VERIFICATION].risk_factors.append(
+                    RiskFactor(
+                        category=RiskCategory.RECRUITER_VERIFICATION,
+                        severity=Severity.HIGH,
+                        description="Matches confirmed scam indicator in community blacklist.",
+                        evidence=(
+                            f"Indicator '{rep['indicator_value']}' was previously reported by job seekers: "
+                            f"'{rep['description']}'."
+                        ),
+                        source="community_scam_registry",
+                        confidence=0.99,
+                    )
+                )
+                results[RiskCategory.RECRUITER_VERIFICATION].score = max(
+                    results[RiskCategory.RECRUITER_VERIFICATION].score, 90.0
+                )
+                results[RiskCategory.RECRUITER_VERIFICATION].analyzed = True
+    except Exception as exc:
+        logger.warning("Community scam lookup error: %s", exc)
+
+
+    # ------------------------------------------------------------------
     # 3. Aggregate via risk engine
     # ------------------------------------------------------------------
     risk_score, band, rec, confidence, category_scores, risk_factors = score_assessment(results)
+
 
     # ------------------------------------------------------------------
     # 4. Determine Active Inputs List

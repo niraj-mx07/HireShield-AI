@@ -1,37 +1,37 @@
 {
   "logistic_regression": {
-    "precision_fraud": 0.8596,
-    "recall_fraud": 0.8991,
-    "f1_fraud": 0.8789,
+    "precision_fraud": 0.8678,
+    "recall_fraud": 0.8995,
+    "f1_fraud": 0.8834,
     "confusion_matrix": [
       [
-        3116,
-        32
+        3119,
+        30
       ],
       [
         22,
-        196
+        197
       ]
     ],
-    "classification_report": "              precision    recall  f1-score   support\n\n        real       0.99      0.99      0.99      3148\n       fraud       0.86      0.90      0.88       218\n\n    accuracy                           0.98      3366\n   macro avg       0.93      0.94      0.94      3366\nweighted avg       0.98      0.98      0.98      3366\n",
-    "train_time_seconds": 0.5
+    "classification_report": "              precision    recall  f1-score   support\n\n        real       0.99      0.99      0.99      3149\n       fraud       0.87      0.90      0.88       219\n\n    accuracy                           0.98      3368\n   macro avg       0.93      0.95      0.94      3368\nweighted avg       0.98      0.98      0.98      3368\n",
+    "train_time_seconds": 0.29
   },
   "random_forest": {
-    "precision_fraud": 0.979,
-    "recall_fraud": 0.6422,
-    "f1_fraud": 0.7756,
+    "precision_fraud": 0.9728,
+    "recall_fraud": 0.653,
+    "f1_fraud": 0.7814,
     "confusion_matrix": [
       [
         3145,
-        3
+        4
       ],
       [
-        78,
-        140
+        76,
+        143
       ]
     ],
-    "classification_report": "              precision    recall  f1-score   support\n\n        real       0.98      1.00      0.99      3148\n       fraud       0.98      0.64      0.78       218\n\n    accuracy                           0.98      3366\n   macro avg       0.98      0.82      0.88      3366\nweighted avg       0.98      0.98      0.97      3366\n",
-    "train_time_seconds": 6.81
+    "classification_report": "              precision    recall  f1-score   support\n\n        real       0.98      1.00      0.99      3149\n       fraud       0.97      0.65      0.78       219\n\n    accuracy                           0.98      3368\n   macro avg       0.97      0.83      0.88      3368\nweighted avg       0.98      0.98      0.97      3368\n",
+    "train_time_seconds": 3.84
   },
   "_best_model": "logistic_regression"
 }

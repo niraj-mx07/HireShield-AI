@@ -16,8 +16,8 @@ services:
   # FastAPI Backend API
   backend:
     build:
-      context: ./backend
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: backend/Dockerfile
     container_name: hireshield-backend
     restart: always
     ports:

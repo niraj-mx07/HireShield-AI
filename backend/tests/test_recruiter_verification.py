@@ -46,3 +46,22 @@ async def test_no_recruiter_info_unanalyzed():
     """Test empty recruiter info returns analyzed=False."""
     result = await recruiter_verification.analyze(recruiter_email=None, recruiter_name="", message=None)
     assert result.analyzed is False
+
+
+@pytest.mark.asyncio
+async def test_dns_mx_missing_flagged(monkeypatch):
+    """Test corporate email domain with no DNS MX records is flagged as high risk."""
+    async def mock_mx(domain):
+        return []
+
+    monkeypatch.setattr(recruiter_verification, "_check_domain_mx", mock_mx)
+
+    result = await recruiter_verification.analyze(
+        recruiter_email="hiring@fake-nonexistent-corp99.com",
+        company_name="Fake Corp",
+        consent=True,
+    )
+    assert result.analyzed is True
+    assert result.score >= 50.0
+    assert any("mx" in rf.description.lower() for rf in result.risk_factors)
+

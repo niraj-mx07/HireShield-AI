@@ -15,9 +15,12 @@ GET  /api/v1/assessments/{assessment_id}
 from __future__ import annotations
 
 import logging
-from typing import Optional
+import uuid
+from datetime import datetime, timezone
+from typing import List, Optional
 
-from fastapi import APIRouter, File, Form, HTTPException, UploadFile, status
+
+from fastapi import APIRouter, File, Form, HTTPException, Query, UploadFile, status
 
 from app.database import get_database
 from app.models.schemas import (
@@ -28,12 +31,15 @@ from app.models.schemas import (
     Recommendation,
     RiskBand,
     RiskFactor,
+    ScamReportRequest,
+    ScamReportResponse,
 )
 from app.services.pipeline import run_assessment
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/v1", tags=["assessments"])
+
 
 
 # ---------------------------------------------------------------------------
@@ -100,6 +106,51 @@ async def create_assessment_with_upload(
 
 
 # ---------------------------------------------------------------------------
+# GET /api/v1/assessments — list recent assessments
+# ---------------------------------------------------------------------------
+
+@router.get(
+    "/assessments",
+    summary="List recent assessments",
+    description="Retrieve a paginated list of recent assessment summaries, ordered by newest first.",
+)
+async def list_assessments(
+    skip: int = Query(0, ge=0, description="Number of records to skip"),
+    limit: int = Query(20, ge=1, le=100, description="Maximum records to return"),
+):
+    """List stored assessments with lightweight summary fields."""
+    db = get_database()
+    cursor = (
+        db.assessments
+        .find({}, {
+            "_id": 0,
+            "id": 1,
+            "status": 1,
+            "risk_score": 1,
+            "risk_band": 1,
+            "recommendation": 1,
+            "confidence": 1,
+            "active_inputs": 1,
+            "input_summary": 1,
+            "created_at": 1,
+            "updated_at": 1,
+        })
+        .sort("created_at", -1)
+        .skip(skip)
+        .limit(limit)
+    )
+    docs = await cursor.to_list(length=limit)
+    total = await db.assessments.count_documents({})
+
+    return {
+        "total": total,
+        "skip": skip,
+        "limit": limit,
+        "assessments": docs,
+    }
+
+
+# ---------------------------------------------------------------------------
 # GET /api/v1/assessments/{assessment_id}
 # ---------------------------------------------------------------------------
 
@@ -129,13 +180,116 @@ async def get_assessment(assessment_id: str) -> AssessmentResponse:
         confidence=doc.get("confidence", 0.0),
         category_scores=[CategoryScore(**cs) for cs in doc.get("category_scores", [])],
         risk_factors=[RiskFactor(**rf) for rf in doc.get("risk_factors", [])],
+        active_inputs=doc.get("active_inputs", []),
         created_at=doc.get("created_at"),
     )
 
 
 # ---------------------------------------------------------------------------
+# Community Scam Registry Endpoints
+# ---------------------------------------------------------------------------
+
+@router.post(
+    "/scams/report",
+    response_model=ScamReportResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="Report a verified scam indicator",
+    description="Submit a fraudulent UPI ID, recruiter phone number, Telegram handle, or email to the community blacklist.",
+)
+async def report_scam(report: ScamReportRequest) -> ScamReportResponse:
+    """Submit a scam indicator to the community defense database."""
+    db = get_database()
+    report_id = uuid.uuid4().hex
+    now = datetime.now(timezone.utc)
+
+    doc = {
+        "id": report_id,
+        "indicator_type": report.indicator_type.strip().lower(),
+        "indicator_value": report.indicator_value.strip().lower(),
+        "company_impersonated": report.company_impersonated.strip() if report.company_impersonated else None,
+        "description": report.description.strip(),
+        "loss_amount": report.loss_amount,
+        "reported_at": now,
+    }
+    await db.scam_reports.insert_one(doc)
+
+    return ScamReportResponse(
+        id=report_id,
+        indicator_type=doc["indicator_type"],
+        indicator_value=doc["indicator_value"],
+        company_impersonated=doc["company_impersonated"],
+        description=doc["description"],
+        loss_amount=doc["loss_amount"],
+        reported_at=now,
+    )
+
+
+@router.get(
+    "/scams/lookup",
+    summary="Lookup a potential scam indicator",
+    description="Check whether a phone number, UPI handle, recruiter email, or Telegram handle exists in the scam blacklist.",
+)
+async def lookup_scam(
+    indicator: str = Query(..., min_length=2, description="Indicator value to search (e.g. phone, UPI, email, handle)")
+):
+    """Search community blacklist for matches."""
+    db = get_database()
+    clean_val = indicator.strip().lower()
+    
+    # Case-insensitive substring search
+    regex_query = {"indicator_value": {"$regex": clean_val, "$options": "i"}}
+    matches = await db.scam_reports.find(regex_query).to_list(length=10)
+
+    found = len(matches) > 0
+    return {
+        "found": found,
+        "query": clean_val,
+        "match_count": len(matches),
+        "reports": [
+            {
+                "id": m["id"],
+                "indicator_type": m["indicator_type"],
+                "indicator_value": m["indicator_value"],
+                "company_impersonated": m.get("company_impersonated"),
+                "description": m["description"],
+                "reported_at": m.get("reported_at"),
+            }
+            for m in matches
+        ],
+    }
+
+
+@router.get(
+    "/scams/recent",
+    summary="Get recent community scam alerts",
+    description="Fetch recent community-reported fraudulent recruitment attempts.",
+)
+async def get_recent_scams(limit: int = Query(10, ge=1, le=50)):
+    """Fetch recent community scam reports."""
+    db = get_database()
+    cursor = db.scam_reports.find().sort("reported_at", -1).limit(limit)
+    reports = await cursor.to_list(length=limit)
+
+    return {
+        "count": len(reports),
+        "reports": [
+            {
+                "id": r["id"],
+                "indicator_type": r["indicator_type"],
+                "indicator_value": r["indicator_value"],
+                "company_impersonated": r.get("company_impersonated"),
+                "description": r["description"],
+                "reported_at": r.get("reported_at"),
+            }
+            for r in reports
+        ],
+    }
+
+
+# ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def _validate_has_input(request: AssessmentRequest) -> None:
     """Ensure at least one meaningful input field is provided."""

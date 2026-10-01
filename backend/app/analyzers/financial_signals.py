@@ -82,24 +82,32 @@ async def analyze(
                 )
             )
 
-    # 2. Check for UPI / Indian payment gateways
-    has_upi = False
-    for upi_pat in UPI_PATTERNS:
-        match = re.search(upi_pat, text_lower)
-        if match:
-            has_upi = True
-            break
+    # 2. Check for UPI / Indian payment gateways & extract specific UPI VPA handle if present
+    upi_keywords_pat = r"\b(?:upi|gpay|google pay|phonepe|paytm|bhim|qr code|scanner|vpa)\b"
+    vpa_pat = r"\b([a-zA-Z0-9.\-_]{2,64}@(?!gmail|yahoo|outlook|hotmail|icloud|proton)[a-zA-Z]{2,32})\b"
+    
+    extracted_vpas = re.findall(vpa_pat, full_text, flags=re.IGNORECASE)
+    has_upi_keyword = bool(re.search(upi_keywords_pat, text_lower))
 
-    if has_upi:
+    if extracted_vpas or has_upi_keyword:
         base_score += 40.0
+        if extracted_vpas:
+            vpa_display = ", ".join(extracted_vpas[:2])
+            evidence_msg = (
+                f"Personal peer-to-peer UPI VPA ID identified: '{vpa_display}'. "
+                "Authentic corporate hiring never requests candidates to transfer funds to personal UPI handles."
+            )
+        else:
+            evidence_msg = "Recruitment process mandates fund transfer via retail UPI, PhonePe, GPay, or Paytm."
+
         risk_factors.append(
             RiskFactor(
                 category=RiskCategory.FINANCIAL_SCAM,
                 severity=Severity.HIGH,
                 description="Direct peer-to-peer payment method (UPI / GPay / PhonePe / Paytm / QR Code) requested.",
-                evidence="Recruitment process mandates fund transfer via retail UPI or instant digital wallet.",
+                evidence=evidence_msg,
                 source="upi_payment_scanner",
-                confidence=0.94,
+                confidence=0.96 if extracted_vpas else 0.94,
             )
         )
 

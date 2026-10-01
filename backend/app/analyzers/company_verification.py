@@ -96,7 +96,63 @@ VERIFIED_COMPANIES: dict[str, dict] = {
         "domains": ["stripe.com"],
         "is_major": True,
     },
+    "accenture": {
+        "name": "Accenture",
+        "domains": ["accenture.com"],
+        "is_major": True,
+    },
+    "capgemini": {
+        "name": "Capgemini",
+        "domains": ["capgemini.com"],
+        "is_major": True,
+    },
+    "ibm": {
+        "name": "IBM",
+        "domains": ["ibm.com"],
+        "is_major": True,
+    },
+    "oracle": {
+        "name": "Oracle Corporation",
+        "domains": ["oracle.com"],
+        "is_major": True,
+    },
+    "deloitte": {
+        "name": "Deloitte",
+        "domains": ["deloitte.com"],
+        "is_major": True,
+    },
+    "pwc": {
+        "name": "PricewaterhouseCoopers (PwC)",
+        "domains": ["pwc.com", "pwc.in"],
+        "is_major": True,
+    },
+    "ey": {
+        "name": "Ernst & Young (EY)",
+        "domains": ["ey.com"],
+        "is_major": True,
+    },
+    "kpmg": {
+        "name": "KPMG",
+        "domains": ["kpmg.com"],
+        "is_major": True,
+    },
+    "zoho": {
+        "name": "Zoho Corporation",
+        "domains": ["zoho.com"],
+        "is_major": True,
+    },
+    "apple": {
+        "name": "Apple",
+        "domains": ["apple.com", "jobs.apple.com"],
+        "is_major": True,
+    },
+    "meta": {
+        "name": "Meta Platforms",
+        "domains": ["meta.com", "metacareers.com"],
+        "is_major": True,
+    },
 }
+
 
 TRUSTED_BOARDS = {
     "linkedin.com", "naukri.com", "internshala.com", "unstop.com",

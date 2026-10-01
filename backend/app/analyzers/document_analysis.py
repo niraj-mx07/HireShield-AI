@@ -48,6 +48,25 @@ def extract_document_text(document_bytes: bytes | None, filename: str | None = N
     return text.strip()
 
 
+def extract_pdf_metadata(document_bytes: bytes | None, filename: str | None = None) -> dict[str, str]:
+    """Extract forensic metadata (Producer, Creator, Author) from PDF bytes."""
+    if not document_bytes:
+        return {}
+    if (filename and filename.lower().endswith(".pdf")) or document_bytes.startswith(b"%PDF"):
+        try:
+            import pypdf
+            reader = pypdf.PdfReader(io.BytesIO(document_bytes))
+            meta = reader.metadata or {}
+            return {
+                "producer": str(meta.get("/Producer", "") or "").strip(),
+                "creator": str(meta.get("/Creator", "") or "").strip(),
+                "author": str(meta.get("/Author", "") or "").strip(),
+            }
+        except Exception as exc:
+            logger.debug("PDF metadata extraction failed: %s", exc)
+    return {}
+
+
 async def analyze(
     document_bytes: bytes | None = None,
     document_filename: str | None = None,
@@ -60,8 +79,11 @@ async def analyze(
         A :class:`CategoryResult` with score (0–100), risk factors, and analyzed=True/False.
     """
     raw_text = document_text or extract_document_text(document_bytes, document_filename)
-    if not raw_text.strip():
+    pdf_meta = extract_pdf_metadata(document_bytes, document_filename)
+
+    if not raw_text.strip() and not pdf_meta:
         return CategoryResult(score=0.0, risk_factors=[], analyzed=False)
+
 
     text_lower = raw_text.lower()
     risk_factors: list[RiskFactor] = []
@@ -121,7 +143,50 @@ async def analyze(
             )
         )
 
-    # 4. If document contains legitimate employment terms (provident fund, CTC, gratuity, medical)
+    # 4. Forensic PDF metadata inspection (Producer, Creator, Author)
+    if pdf_meta:
+        creator_combined = f"{pdf_meta.get('creator', '')} {pdf_meta.get('producer', '')} {pdf_meta.get('author', '')}".lower()
+        
+        # Check consumer graphic design tools
+        consumer_tools = ["canva", "photoshop", "coreldraw", "illustrator", "paint.net", "gimp"]
+        matched_consumer = next((tool for tool in consumer_tools if tool in creator_combined), None)
+
+        # Check enterprise e-sign & HR platforms
+        enterprise_tools = ["docusign", "adobesign", "workday", "bamboohr", "successfactors"]
+        matched_enterprise = next((tool for tool in enterprise_tools if tool in creator_combined), None)
+
+        if matched_consumer:
+            base_score += 45.0
+            tool_name = pdf_meta.get("creator") or pdf_meta.get("producer") or matched_consumer.title()
+            risk_factors.append(
+                RiskFactor(
+                    category=RiskCategory.DOCUMENT_ANALYSIS,
+                    severity=Severity.HIGH,
+                    description=f"Consumer design tool ({tool_name}) detected in document metadata.",
+                    evidence=(
+                        f"PDF metadata identifies creation tool as '{tool_name}'. "
+                        "Official corporate offer letters are generated via enterprise HR ERPs "
+                        "or verified e-sign platforms (Workday, DocuSign), not consumer graphic design tools."
+                    ),
+                    source="pdf_forensic_metadata_inspector",
+                    confidence=0.94,
+                )
+            )
+        elif matched_enterprise:
+            base_score = max(base_score - 15.0, 5.0)
+            ent_name = pdf_meta.get("producer") or pdf_meta.get("creator") or matched_enterprise.title()
+            risk_factors.append(
+                RiskFactor(
+                    category=RiskCategory.DOCUMENT_ANALYSIS,
+                    severity=Severity.LOW,
+                    description=f"Verified corporate e-sign / HR platform ({ent_name}) detected.",
+                    evidence=f"PDF metadata confirms document was produced using enterprise e-signature infrastructure '{ent_name}'.",
+                    source="pdf_forensic_metadata_inspector",
+                    confidence=0.92,
+                )
+            )
+
+    # 5. If document contains legitimate employment terms (provident fund, CTC, gratuity, medical)
     has_legit_clauses = any(
         kw in text_lower for kw in ["provident fund", "pf", "gratuity", "cost to company", "ctc", "leaves", "health insurance"]
     )
@@ -140,3 +205,4 @@ async def analyze(
 
     final_score = round(min(max(base_score, 0.0), 100.0), 2)
     return CategoryResult(score=final_score, risk_factors=risk_factors, analyzed=True)
+

@@ -96,6 +96,19 @@ def load_raw() -> pd.DataFrame:
         df_json = df_json[["combined_text", "fraudulent"]].dropna(subset=["fraudulent"])
         frames.append(df_json)
 
+    # 5. Modern Remote Work, Messaging & Tech Startup JSON
+    raw_modern_json = RAW_DIR / "modern_scams_and_startups.json"
+    if raw_modern_json.exists():
+        df_modern = pd.read_json(raw_modern_json)
+        print(f"[INFO] Loaded {len(df_modern):,} rows from {raw_modern_json.name}")
+        cols = ["title", "description", "requirements", "company_profile", "benefits"]
+        for c in cols:
+            df_modern[c] = df_modern[c].fillna("") if c in df_modern.columns else ""
+        df_modern["combined_text"] = df_modern[cols].agg(" ".join, axis=1).str.strip()
+        df_modern = df_modern[["combined_text", "fraudulent"]].dropna(subset=["fraudulent"])
+        frames.append(df_modern)
+
+
     if not frames:
         print("[ERROR] No raw data found in ml/data/raw/")
         sys.exit(1)

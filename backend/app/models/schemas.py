@@ -175,3 +175,28 @@ class AssessmentRecord(BaseModel):
     active_inputs: List[str] = Field(default_factory=list)
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+
+# ---------------------------------------------------------------------------
+# Community Scam Registry Models
+# ---------------------------------------------------------------------------
+
+class ScamReportRequest(BaseModel):
+    """Payload for submitting a community scam report."""
+    indicator_type: str = Field(..., description="Type of indicator: upi_id, phone, email, telegram, domain")
+    indicator_value: str = Field(..., description="The value: e.g. hrfee@okaxis, +919876543210, @task_earn")
+    company_impersonated: Optional[str] = Field(None, description="Company the scammer pretended to represent")
+    description: str = Field(..., description="Detailed explanation of the fraudulent recruitment attempt")
+    loss_amount: Optional[float] = Field(None, ge=0.0, description="Amount lost or requested, if any")
+
+
+class ScamReportResponse(BaseModel):
+    """Response payload for a community scam report."""
+    id: str
+    indicator_type: str
+    indicator_value: str
+    company_impersonated: Optional[str] = None
+    description: str
+    loss_amount: Optional[float] = None
+    reported_at: datetime
+

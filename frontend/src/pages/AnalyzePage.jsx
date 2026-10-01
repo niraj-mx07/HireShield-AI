@@ -21,8 +21,10 @@ export const AnalyzePage = () => {
   const [descInput, setDescInput] = useState('');
   const [fileName, setFileName] = useState('');
   const [fileObject, setFileObject] = useState(null);
+  const [companyName, setCompanyName] = useState('');
   const [recruiterEmail, setRecruiterEmail] = useState('');
   const [recruiterName, setRecruiterName] = useState('');
+  const [recruiterPhone, setRecruiterPhone] = useState('');
   const [messageInput, setMessageInput] = useState('');
 
   const [validationError, setValidationError] = useState('');
@@ -33,8 +35,10 @@ export const AnalyzePage = () => {
     setUrlInput('https://apex-global-careers-hire.net/jobs/entry-data-spec');
     setDescInput('We are looking for an Entry-Level Remote Data Specialist. $65/hr. High payout. Mandatory requirement: Candidates must accept a $2,000 cashier check reimbursement to purchase Apple hardware from our designated portal.');
     setFileName('Apex_Global_Offer_Letter.pdf');
+    setCompanyName('Apex Global Careers');
     setRecruiterEmail('recruitment@apex-global-hr.net');
     setRecruiterName('Sarah Jenkins');
+    setRecruiterPhone('');
     setMessageInput('Hello! Your application for Data Entry Specialist has been approved. Please message our hiring manager on Telegram @apex_hr_dept immediately to claim your $2,000 equipment check.');
     setValidationError('');
     loadReport(mockAnalysisHighRisk);
@@ -44,8 +48,10 @@ export const AnalyzePage = () => {
     setUrlInput('https://excel-careers-india.in/jobs/accounts-assistant');
     setDescInput('Accounts Assistant Job Openings in Mumbai | ₹25,000/month Salary | Placement Guarantee. Join our Placement Consultant today and get placed in top MNCs. Our consultancy charges are ₹5,000 refundable security deposit only.');
     setFileName('Excel_Placement_Agreement.pdf');
+    setCompanyName('Excel Career Solutions');
     setRecruiterEmail('placementfee@gmail.com');
     setRecruiterName('Rajesh Kumar (WhatsApp Consultant)');
+    setRecruiterPhone('+91 9812345678');
     setMessageInput('Congratulations! Selected for MNC Accounts role. Pay ₹5,000 refundable security deposit via UPI/GPay to confirm slot. Contact WhatsApp: +91 9812345678.');
     setValidationError('');
     loadReport(mockAnalysisIndiaScam);
@@ -55,8 +61,10 @@ export const AnalyzePage = () => {
     setUrlInput('https://global-fast-remote-jobs.site/apply');
     setDescInput('Remote Crypto Portfolio & Task Specialist. Guaranteed $1,500 weekly payout + free MacBook Pro shipped immediately. Complete daily simple tasks and earn commission.');
     setFileName('Contract_Bond_Agreement.pdf');
+    setCompanyName('Global Fast Remote Jobs');
     setRecruiterEmail('hr@global-fast-remote-jobs.site');
     setRecruiterName('Alex Vance (@fast_crypto_jobs)');
+    setRecruiterPhone('');
     setMessageInput('Hi! To activate your daily $1,500 crypto task bot, connect with our supervisor on Telegram @fast_crypto_jobs.');
     setValidationError('');
     loadReport(mockAnalysisTelegramScam);
@@ -66,8 +74,10 @@ export const AnalyzePage = () => {
     setUrlInput('https://stripe.com/jobs/listing/software-engineer-intern');
     setDescInput('Stripe is hiring Software Engineer Interns for Summer 2026. You will build payment infrastructure with Ruby, Go, and React. $55/hr + housing stipend. Official university recruiting program.');
     setFileName('Stripe_Internship_Offer_2026.pdf');
+    setCompanyName('Stripe');
     setRecruiterEmail('university-hiring@stripe.com');
     setRecruiterName('Elena Rostova');
+    setRecruiterPhone('');
     setMessageInput('Hi Nihar, Thank you for interviewing with Stripe. We are thrilled to offer you a Software Engineer Internship position for Summer 2026!');
     setValidationError('');
     loadReport(mockAnalysisLowRisk);
@@ -103,15 +113,17 @@ export const AnalyzePage = () => {
       const apiResult = await submitAssessment({
         url: trimmedUrl || undefined,
         description: trimmedDesc || undefined,
-        company_name: trimmedDesc.includes('Stripe') ? 'Stripe' : trimmedDesc.includes('Excel') ? 'Excel Career Solutions' : undefined,
+        company_name: companyName.trim() || undefined,
         recruiter_email: recruiterEmail.trim() || undefined,
         recruiter_name: recruiterName.trim() || undefined,
+        recruiter_phone: recruiterPhone.trim() || undefined,
         message: trimmedMsg || undefined,
       });
 
       const formatted = formatBackendResponse(apiResult, {
         url: trimmedUrl,
         description: trimmedDesc || trimmedMsg,
+        company_name: companyName.trim(),
         recruiter_email: recruiterEmail,
         recruiter_name: recruiterName,
       });
@@ -143,7 +155,7 @@ export const AnalyzePage = () => {
     { id: 'url', label: 'Job URL', icon: Link2, hasValue: !!urlInput.trim() },
     { id: 'description', label: 'Job Description', icon: FileText, hasValue: !!descInput.trim() },
     { id: 'document', label: 'Upload Document', icon: Upload, hasValue: !!fileName },
-    { id: 'recruiter', label: 'Recruiter Details', icon: UserCheck, hasValue: !!(recruiterEmail.trim() || recruiterName.trim()) },
+    { id: 'recruiter', label: 'Recruiter Details', icon: UserCheck, hasValue: !!(companyName.trim() || recruiterEmail.trim() || recruiterName.trim() || recruiterPhone.trim()) },
     { id: 'email', label: 'Email / Message', icon: Mail, hasValue: !!messageInput.trim() },
   ];
 
@@ -340,6 +352,18 @@ export const AnalyzePage = () => {
           {/* TAB 4: RECRUITER DETAILS */}
           {activeTab === 'recruiter' && (
             <div className="space-y-4">
+              <div>
+                <label className="block text-xs font-semibold uppercase tracking-wider text-ink-muted mb-2">
+                  Company / Organization Name
+                </label>
+                <input
+                  type="text"
+                  value={companyName}
+                  onChange={(e) => setCompanyName(e.target.value)}
+                  placeholder="e.g. Tata Consultancy Services, Stripe, Infosys"
+                  className="w-full bg-canvas border border-ink/10 rounded-2xl px-5 py-3 text-sm text-ink placeholder-ink-subtle focus:outline-none focus:border-primary"
+                />
+              </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-semibold uppercase tracking-wider text-ink-muted mb-2">
@@ -366,8 +390,20 @@ export const AnalyzePage = () => {
                   />
                 </div>
               </div>
+              <div>
+                <label className="block text-xs font-semibold uppercase tracking-wider text-ink-muted mb-2">
+                  Recruiter Phone / WhatsApp Number
+                </label>
+                <input
+                  type="tel"
+                  value={recruiterPhone}
+                  onChange={(e) => setRecruiterPhone(e.target.value)}
+                  placeholder="e.g. +91 9876543210"
+                  className="w-full bg-canvas border border-ink/10 rounded-2xl px-5 py-3 text-sm text-ink placeholder-ink-subtle focus:outline-none focus:border-primary"
+                />
+              </div>
               <p className="text-xs text-ink-subtle">
-                Validates MX records, DMARC/SPF authentication headers, and corporate directory alignment.
+                Validates MX records, DMARC/SPF authentication headers, corporate directory alignment, and WhatsApp/Telegram identity.
               </p>
             </div>
           )}

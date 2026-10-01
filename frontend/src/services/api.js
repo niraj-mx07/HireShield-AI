@@ -23,6 +23,7 @@ export async function submitAssessment(payload) {
       company_name: payload.company_name || undefined,
       recruiter_email: payload.recruiter_email || undefined,
       recruiter_name: payload.recruiter_name || undefined,
+      recruiter_phone: payload.recruiter_phone || undefined,
       message: payload.message || undefined,
       consent_for_external_lookups: true,
     }),

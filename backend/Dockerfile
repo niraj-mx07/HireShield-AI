@@ -9,14 +9,14 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy backend requirements and install
-COPY requirements.txt .
+COPY backend/requirements.txt ./requirements.txt
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy backend application code
-COPY . .
+COPY backend/ ./
 
-# Copy ML artifacts into position if needed
-COPY ../ml/artifacts /app/ml/artifacts
+# Copy ML artifacts into position
+COPY ml/artifacts/ /app/ml/artifacts/
 
 EXPOSE 8000
 

@@ -18,6 +18,8 @@ from app.models.schemas import (
 
 logger = logging.getLogger(__name__)
 
+import httpx
+
 # Common free webmail providers
 FREE_EMAIL_DOMAINS = {
     "gmail.com", "yahoo.com", "yahoo.in", "yahoo.co.in", "outlook.com",
@@ -30,8 +32,24 @@ KNOWN_ENTERPRISES = {
     "tcs", "tata consultancy services", "infosys", "wipro", "cognizant",
     "hcl", "tech mahindra", "amazon", "google", "microsoft", "flipkart",
     "reliance", "jio", "deloitte", "accenture", "ibm", "capgemini", "ey",
-    "ernst & young", "pwc", "kpmg",
+    "ernst & young", "pwc", "kpmg", "apple", "meta", "oracle",
 }
+
+
+async def _check_domain_mx(domain: str) -> list[str]:
+    """Query Cloudflare DNS-over-HTTPS for DNS MX mail exchanger records."""
+    url = f"https://cloudflare-dns.com/dns-query?name={domain}&type=MX"
+    try:
+        async with httpx.AsyncClient(timeout=2.5) as client:
+            resp = await client.get(url, headers={"accept": "application/dns-json"})
+            if resp.status_code == 200:
+                data = resp.json()
+                answers = data.get("Answer", [])
+                return [ans.get("data", "") for ans in answers if ans.get("data")]
+    except Exception as exc:
+        logger.debug("DNS MX lookup skipped or failed for %s: %s", domain, exc)
+    return []
+
 
 
 async def analyze(
@@ -114,6 +132,39 @@ async def analyze(
                         confidence=0.90,
                     )
                 )
+
+        # Check live DNS MX records for corporate email domains (when consent granted)
+        if consent:
+            mx_records = await _check_domain_mx(email_domain)
+            if not mx_records:
+                base_score += 55.0
+                risk_factors.append(
+                    RiskFactor(
+                        category=RiskCategory.RECRUITER_VERIFICATION,
+                        severity=Severity.HIGH,
+                        description="Recruiter email domain has no DNS MX mail exchangers.",
+                        evidence=(
+                            f"Domain '{email_domain}' has no active DNS MX mail routing records. "
+                            "It cannot receive or send authentic enterprise mail and is likely a disposable "
+                            "or spoofed domain."
+                        ),
+                        source="dns_mx_verifier",
+                        confidence=0.95,
+                    )
+                )
+            elif not any(rf.severity == Severity.HIGH for rf in risk_factors):
+                top_mx = mx_records[0].split()[-1]
+                risk_factors.append(
+                    RiskFactor(
+                        category=RiskCategory.RECRUITER_VERIFICATION,
+                        severity=Severity.LOW,
+                        description="Recruiter email domain has operational mail exchangers.",
+                        evidence=f"DNS MX record confirmed active mail routing server: '{top_mx}'.",
+                        source="dns_mx_verifier",
+                        confidence=0.88,
+                    )
+                )
+
 
     # 2. Telegram / WhatsApp channel recruitment check
     combined_content = f"{message or ''} {recruiter_phone or ''} {recruiter_name or ''}".lower()

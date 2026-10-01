@@ -19,6 +19,9 @@ from app.models.schemas import (
 
 logger = logging.getLogger(__name__)
 
+from datetime import datetime, timezone
+import httpx
+
 # Known trusted job boards and platforms
 TRUSTED_JOB_PORTALS = {
     "linkedin.com", "naukri.com", "internshala.com", "unstop.com",
@@ -44,7 +47,7 @@ URL_SHORTENERS = {
     "bit.ly", "tinyurl.com", "t.co", "cutt.ly", "is.gd", "rb.gy", "shorturl.at", "ow.ly",
 }
 
-# Verified official corporate domains (especially Indian IT & MNC giants)
+# Verified official corporate domains (including major global & Indian enterprises)
 OFFICIAL_MNC_DOMAINS = {
     "tcs": ["tcs.com", "tcscareers.com", "nextstep.tcs.com", "learning.tcsionhub.in"],
     "infosys": ["infosys.com", "career.infosys.com"],
@@ -52,12 +55,60 @@ OFFICIAL_MNC_DOMAINS = {
     "cognizant": ["cognizant.com", "careers.cognizant.com"],
     "hcl": ["hcltech.com", "hcl.com"],
     "tech mahindra": ["techmahindra.com", "careers.techmahindra.com"],
+    "accenture": ["accenture.com"],
+    "capgemini": ["capgemini.com"],
+    "ibm": ["ibm.com"],
+    "oracle": ["oracle.com"],
+    "deloitte": ["deloitte.com"],
+    "pwc": ["pwc.com", "pwc.in"],
+    "ey": ["ey.com"],
+    "kpmg": ["kpmg.com"],
     "amazon": ["amazon.jobs", "amazon.com", "amazon.in"],
     "google": ["google.com", "careers.google.com"],
     "microsoft": ["microsoft.com", "careers.microsoft.com"],
+    "meta": ["meta.com", "metacareers.com"],
+    "apple": ["apple.com", "jobs.apple.com"],
+    "zoho": ["zoho.com"],
     "flipkart": ["flipkartcareers.com", "flipkart.com"],
     "reliance": ["ril.com", "jio.com"],
 }
+
+
+async def _check_domain_rdap(domain: str) -> dict | None:
+    """Query RDAP registry to determine domain creation date and registration age."""
+    # Strip subdomains for common multi-level domains
+    parts = domain.split(".")
+    if len(parts) > 2 and parts[-2] not in {"co", "com", "org", "net", "gov", "edu", "ac"}:
+        root_domain = ".".join(parts[-2:])
+    elif len(parts) > 3:
+        root_domain = ".".join(parts[-3:])
+    else:
+        root_domain = domain
+
+    url = f"https://rdap.org/domain/{root_domain}"
+    try:
+        async with httpx.AsyncClient(timeout=2.5, follow_redirects=True) as client:
+            resp = await client.get(url, headers={"Accept": "application/rdap+json, application/json"})
+            if resp.status_code == 200:
+                data = resp.json()
+                for event in data.get("events", []):
+                    action = event.get("eventAction", "").lower()
+                    if action in {"registration", "created"}:
+                        date_str = event.get("eventDate", "")
+                        if date_str:
+                            clean_date = date_str.replace("Z", "+00:00")
+                            created_dt = datetime.fromisoformat(clean_date)
+                            now = datetime.now(timezone.utc)
+                            age_days = (now - created_dt).days
+                            return {
+                                "root_domain": root_domain,
+                                "created_date": created_dt.strftime("%Y-%m-%d"),
+                                "age_days": max(0, age_days),
+                            }
+    except Exception as exc:
+        logger.debug("RDAP lookup skipped or failed for %s: %s", domain, exc)
+    return None
+
 
 
 async def analyze(
@@ -210,5 +261,46 @@ async def analyze(
             )
         )
 
+    # 8. Live RDAP Domain Age & Registration Verification (when external lookups permitted)
+    if consent and not is_trusted:
+        rdap_info = await _check_domain_rdap(domain)
+        if rdap_info:
+            age_days = rdap_info["age_days"]
+            created_date = rdap_info["created_date"]
+            root_domain = rdap_info["root_domain"]
+
+            if age_days <= 60:
+                base_score += 45.0
+                risk_factors.append(
+                    RiskFactor(
+                        category=RiskCategory.URL_WEBSITE,
+                        severity=Severity.HIGH,
+                        description="Newly registered domain (< 60 days old) detected.",
+                        evidence=(
+                            f"Domain '{root_domain}' was created very recently on {created_date} "
+                            f"({age_days} days ago). Disposable and recently purchased domains "
+                            f"are heavily leveraged in fraudulent recruitment campaigns."
+                        ),
+                        source="rdap_domain_age_verifier",
+                        confidence=0.92,
+                    )
+                )
+            elif age_days >= 365 and not any(rf.severity == Severity.HIGH for rf in risk_factors):
+                years_active = round(age_days / 365.25, 1)
+                risk_factors.append(
+                    RiskFactor(
+                        category=RiskCategory.URL_WEBSITE,
+                        severity=Severity.LOW,
+                        description="Domain possesses established registration longevity.",
+                        evidence=(
+                            f"Domain '{root_domain}' has been registered since {created_date} "
+                            f"(~{years_active} years active)."
+                        ),
+                        source="rdap_domain_age_verifier",
+                        confidence=0.85,
+                    )
+                )
+
     final_score = round(min(max(base_score, 0.0), 100.0), 2)
     return CategoryResult(score=final_score, risk_factors=risk_factors, analyzed=True)
+

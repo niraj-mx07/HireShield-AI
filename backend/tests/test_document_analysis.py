@@ -31,3 +31,22 @@ async def test_empty_document_unanalyzed():
     """Test empty document text returns analyzed=False."""
     result = await document_analysis.analyze(document_text="")
     assert result.analyzed is False
+
+
+@pytest.mark.asyncio
+async def test_canva_pdf_metadata_flagged(monkeypatch):
+    """Test PDF created in Canva or consumer design tool triggers high severity."""
+    monkeypatch.setattr(
+        document_analysis,
+        "extract_pdf_metadata",
+        lambda *args, **kwargs: {"creator": "Canva", "producer": "Canva PDF Exporter", "author": "Anonymous"},
+    )
+    result = await document_analysis.analyze(
+        document_bytes=b"%PDF-mock",
+        document_filename="offer_letter.pdf",
+        document_text="Offer of employment at Tech Global Solutions",
+    )
+    assert result.analyzed is True
+    assert result.score >= 40.0
+    assert any("canva" in rf.description.lower() for rf in result.risk_factors)
+

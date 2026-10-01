@@ -42,3 +42,14 @@ async def test_empty_financial_input_unanalyzed():
     """Test empty financial inputs return analyzed=False."""
     result = await financial_signals.analyze(description=None, message=None)
     assert result.analyzed is False
+
+
+@pytest.mark.asyncio
+async def test_upi_vpa_handle_extracted():
+    """Test explicit UPI VPA handles (e.g. hrfee@okaxis) are extracted and surfaced."""
+    msg = "Send registration charge to hrrecruitment@okhdfcbank or 9812345678@paytm immediately."
+    result = await financial_signals.analyze(message=msg)
+    assert result.analyzed is True
+    assert result.score >= 40.0
+    assert any("hrrecruitment@okhdfcbank" in rf.evidence for rf in result.risk_factors)
+
