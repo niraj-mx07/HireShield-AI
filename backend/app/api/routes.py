@@ -181,6 +181,7 @@ async def get_assessment(assessment_id: str) -> AssessmentResponse:
         category_scores=[CategoryScore(**cs) for cs in doc.get("category_scores", [])],
         risk_factors=[RiskFactor(**rf) for rf in doc.get("risk_factors", [])],
         active_inputs=doc.get("active_inputs", []),
+        document_derived_inputs=doc.get("document_derived_inputs", []),
         created_at=doc.get("created_at"),
     )
 

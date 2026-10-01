@@ -95,6 +95,8 @@ Two backend services implement the "verification via retrieval" capability. Both
 
 The pipeline performs **one** page fetch per assessment when `consent_for_external_lookups=true` and retrieval is enabled, then shares the parsed page with the job-content analyzer (page text as an extra ML input) and the company-verification analyzer (live payment-prompt, job-posting, and apply-form signals). Trusted job boards are never re-fetched because they already host the listing. Extracted entities are returned to the caller in `AssessmentResponse.entities` and are never persisted.
 
+Uploaded documents are additionally mined for fields the user left blank (`app/services/document_mining.py`): a `Company:`-style label or a contextual `ORG` span becomes `company_name`, and the first email, URL, and phone become `recruiter_email`, `url`, and `recruiter_phone`. Only *empty* fields are ever filled, so user-typed input always wins; the auto-filled field names are reported in `AssessmentResponse.document_derived_inputs` for provenance, and — like entities — derived field *values* are never persisted. Because these fields feed analyzers that would otherwise be skipped (and the document text feeds the job-content classifier directly), a single document upload can raise `confidence` from 0.25 to 1.00. A URL mined from a document still requires `consent_for_external_lookups=true` before any external fetch.
+
 | Environment variable | Default | Purpose |
 | --- | --- | --- |
 | `WEB_RETRIEVAL_ENABLED` | `true` | Master switch for external page retrieval. |
@@ -160,6 +162,7 @@ Each assessment returns:
 - A recommendation: **🟢 APPLY**, **🟡 HOLD**, or **🔴 DON'T APPLY**.
 - An explainable risk-factor breakdown by category and severity: **🔴 High**, **🟠 Medium**, or **🟢 Low**.
 - A confidence level reflecting evidence completeness and signal agreement.
+- The list of inputs the analysis used (`active_inputs`) plus `document_derived_inputs`, naming any fields auto-filled from the uploaded document (values are not stored).
 - Verification evidence marked **✓ verified** or **⚠ unable to verify**, with the associated source/check.
 
 ## Local Setup

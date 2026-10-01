@@ -159,6 +159,13 @@ class AssessmentResponse(BaseModel):
     category_scores: List[CategoryScore] = Field(default_factory=list)
     risk_factors: List[RiskFactor] = Field(default_factory=list)
     active_inputs: List[str] = Field(default_factory=list, description="Inputs supplied by the user")
+    document_derived_inputs: List[str] = Field(
+        default_factory=list,
+        description=(
+            "Request fields auto-filled from the uploaded document "
+            "(field names only — values are never persisted)"
+        ),
+    )
     entities: List[ExtractedEntity] = Field(
         default_factory=list,
         description="Named entities extracted from the submitted / retrieved text (not persisted)",
