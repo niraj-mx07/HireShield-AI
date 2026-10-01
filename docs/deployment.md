@@ -76,10 +76,10 @@ This guide covers deployment options for **HireShield-AI** across modern cloud p
 
 ## Option 3: Testing Sample Datasets in Production
 
-Pre-configured sample files are located in [`samples/`](../samples/):
+Pre-configured sample files are located in [`backend/samples/`](../backend/samples/):
 ```bash
 # Test sample with production backend
 curl -X POST https://your-backend.onrender.com/api/v1/assessments \
   -H "Content-Type: application/json" \
-  -d @samples/02_indian_consultancy_placement_scam.json
+  -d @backend/samples/02_indian_consultancy_placement_scam.json
 ```

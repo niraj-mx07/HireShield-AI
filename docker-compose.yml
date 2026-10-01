@@ -3,7 +3,9 @@ version: '3.8'
 services:
   # MongoDB Database
   mongodb:
-    image: mongo:6.0
+    # NOTE: mongo:5.0+ requires a CPU with AVX support. This host does not
+    # expose AVX, so we pin the last no-AVX release (4.4) to avoid SIGILL.
+    image: mongo:4.4
     container_name: hireshield-mongodb
     restart: always
     ports:

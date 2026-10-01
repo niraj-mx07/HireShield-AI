@@ -32,7 +32,7 @@ uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
 cd c:\Users\new\HireShield-AI\frontend
 npm run dev
 ```
-> Web UI runs at: **http://localhost:5173**
+> Web UI runs at: **http://localhost:3000**
 
 ---
 
@@ -187,5 +187,5 @@ uvicorn app.main:app --reload --port 8001
 The assessment engine runs standalone with in-memory rules and ML inference. If MongoDB is not running locally, database history persistence is skipped gracefully without interrupting analysis.
 To start MongoDB locally with Docker:
 ```powershell
-docker run -d -p 27017:27017 --name hireshield-mongo mongo:latest
+docker run -d -p 27017:27017 --name hireshield-mongo mongo:4.4   # 4.4 = last release that runs without CPU AVX support
 ```

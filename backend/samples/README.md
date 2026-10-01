@@ -26,14 +26,14 @@ This directory contains ready-to-use sample opportunity files representing diffe
 ```bash
 curl -X POST http://127.0.0.1:8000/api/v1/assessments \
   -H "Content-Type: application/json" \
-  -d @samples/02_indian_consultancy_placement_scam.json
+  -d @backend/samples/02_indian_consultancy_placement_scam.json
 ```
 
 ### Method C: Python Script
 ```python
 import requests
 
-with open("samples/02_indian_consultancy_placement_scam.json") as f:
+with open("backend/samples/02_indian_consultancy_placement_scam.json") as f:
     data = f.read()
 
 resp = requests.post(
