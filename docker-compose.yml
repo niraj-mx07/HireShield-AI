@@ -1,0 +1,58 @@
+version: '3.8'
+
+services:
+  # MongoDB Database
+  mongodb:
+    # NOTE: mongo:5.0+ requires a CPU with AVX support. This host does not
+    # expose AVX, so we pin the last no-AVX release (4.4) to avoid SIGILL.
+    image: mongo:4.4
+    container_name: hireshield-mongodb
+    restart: always
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo_data:/data/db
+    networks:
+      - hireshield-net
+
+  # FastAPI Backend API
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    container_name: hireshield-backend
+    restart: always
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=mongodb://mongodb:27017
+      - DATABASE_NAME=hireshield
+      - CORS_ORIGINS=http://localhost:3000,http://localhost:80,http://127.0.0.1:3000
+      - LOG_LEVEL=INFO
+    depends_on:
+      - mongodb
+    networks:
+      - hireshield-net
+
+  # React / Vite Frontend
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: hireshield-frontend
+    restart: always
+    ports:
+      - "3000:80"
+    environment:
+      - VITE_API_BASE_URL=http://localhost:8000
+    depends_on:
+      - backend
+    networks:
+      - hireshield-net
+
+volumes:
+  mongo_data:
+
+networks:
+  hireshield-net:
+    driver: bridge

@@ -17,6 +17,7 @@ HireShield-AI is an opportunity-credibility assessment system for students, fres
 - [Datasets and Knowledge Bases](#datasets-and-knowledge-bases)
 - [Output](#output)
 - [Local Setup](#local-setup)
+- [Developer Commands Cheatsheet](./COMMANDS.md)
 - [Project Structure](#project-structure)
 - [Privacy and Safety Design](#privacy-and-safety-design)
 - [Team](#team)
@@ -175,7 +176,7 @@ Run these from separate terminals:
 
 ```bash
 cd backend
-uvicorn app.main:app --reload
+uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
 ```
 
 ```bash
@@ -183,36 +184,59 @@ cd frontend
 npm run dev
 ```
 
+> **Detailed Command Reference**: See [`COMMANDS.md`](./COMMANDS.md) for full ML training, testing, Docker, and troubleshooting commands.
+
 ## Project Structure
 
-This is the proposed application layout; only the root documentation is present at this stage.
+Below is the current repository layout (code-only; build outputs, virtual environments, and raw datasets are git-ignored).
 
 ```text
 HireShield-AI/
 ├── README.md
-├── frontend/
-│   ├── src/
-│   │   ├── components/
-│   │   ├── pages/
-│   │   └── services/
-│   └── .env.example
-├── backend/
+├── COMMANDS.md                 # Developer command cheatsheet
+├── docker-compose.yml          # Full-stack orchestration (frontend + backend + MongoDB)
+├── backend/                    # FastAPI service
 │   ├── app/
-│   │   ├── api/
-│   │   ├── services/
-│   │   ├── analyzers/
-│   │   ├── models/
+│   │   ├── api/                # /api/v1 routes
+│   │   ├── analyzers/          # 7 category risk analyzers
+│   │   ├── models/             # Pydantic schemas
+│   │   ├── services/           # pipeline, risk engine, ML model loader
+│   │   ├── utils/              # privacy/redaction helpers
+│   │   ├── config.py
+│   │   ├── database.py
 │   │   └── main.py
+│   ├── samples/                # Sample API request payloads (.json)
+│   ├── scripts/                # DB migrate & seed
+│   ├── tests/                  # pytest suite
+│   ├── Dockerfile
 │   ├── requirements.txt
 │   └── .env.example
-├── ml/
-│   ├── training/
-│   ├── evaluation/
-│   └── artifacts/
-├── data/
-│   └── README.md
+├── frontend/                   # React + Vite SPA
+│   ├── src/
+│   │   ├── components/
+│   │   ├── context/
+│   │   ├── data/
+│   │   ├── pages/
+│   │   └── services/
+│   ├── Dockerfile
+│   ├── nginx.conf              # Production web-server config
+│   ├── index.html
+│   ├── package.json
+│   ├── tailwind.config.js
+│   ├── postcss.config.js
+│   ├── vite.config.js
+│   └── .env.example
+├── ml/                         # Training & evaluation pipeline
+│   ├── training/               # download_data, preprocess, feature_extractor, train_*
+│   ├── evaluation/             # evaluate.py, eda_analysis.py, metrics.json, plots/
+│   ├── artifacts/              # Trained model + TF-IDF vectoriser (.joblib)
+│   ├── data/                   # raw/ + processed/ (git-ignored)
+│   ├── requirements.txt
+│   ├── README.md
+│   └── .env.example
 └── docs/
-    └── architecture.md
+    ├── deployment.md
+    └── frontend/               # Frontend design & component docs
 ```
 
 ## Privacy and Safety Design

@@ -1,0 +1,37 @@
+{
+  "logistic_regression": {
+    "precision_fraud": 0.8678,
+    "recall_fraud": 0.8995,
+    "f1_fraud": 0.8834,
+    "confusion_matrix": [
+      [
+        3119,
+        30
+      ],
+      [
+        22,
+        197
+      ]
+    ],
+    "classification_report": "              precision    recall  f1-score   support\n\n        real       0.99      0.99      0.99      3149\n       fraud       0.87      0.90      0.88       219\n\n    accuracy                           0.98      3368\n   macro avg       0.93      0.95      0.94      3368\nweighted avg       0.98      0.98      0.98      3368\n",
+    "train_time_seconds": 0.29
+  },
+  "random_forest": {
+    "precision_fraud": 0.9728,
+    "recall_fraud": 0.653,
+    "f1_fraud": 0.7814,
+    "confusion_matrix": [
+      [
+        3145,
+        4
+      ],
+      [
+        76,
+        143
+      ]
+    ],
+    "classification_report": "              precision    recall  f1-score   support\n\n        real       0.98      1.00      0.99      3149\n       fraud       0.97      0.65      0.78       219\n\n    accuracy                           0.98      3368\n   macro avg       0.97      0.83      0.88      3368\nweighted avg       0.98      0.98      0.97      3368\n",
+    "train_time_seconds": 3.84
+  },
+  "_best_model": "logistic_regression"
+}

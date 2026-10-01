@@ -10,4 +10,28 @@ frontend/dist/
 __pycache__/
 *.pyc
 venv/
+.venv/
 .env
+.env.*
+!.env.example
+backend/.env
+backend/.env.*
+!backend/.env.example
+frontend/.env
+frontend/.env.*
+!frontend/.env.example
+ml/.env
+ml/.env.*
+!ml/.env.example
+.pytest_cache/
+
+# ML — raw data and model artifacts (keep code + small metrics files)
+ml/data/raw/
+ml/data/processed/
+ml/artifacts/*.joblib
+ml/artifacts/*.pkl
+ml/artifacts/*.bin
+
+# Explicitly track lightweight production models for cloud deployment (<3MB total)
+!ml/artifacts/best_model.joblib
+!ml/artifacts/tfidf_vectorizer.joblib

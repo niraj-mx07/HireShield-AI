@@ -94,7 +94,7 @@ frontend/
   - `boxShadow.subtle`: `0 4px 20px -2px rgba(28, 27, 27, 0.05), 0 2px 6px -1px rgba(28, 27, 27, 0.03)`
   - `boxShadow.floating`: `0 12px 32px -4px rgba(0, 62, 28, 0.08), 0 4px 12px -2px rgba(28, 27, 27, 0.04)`
 
-### Design System Drift Analysis (vs `docs/Frontend/Design.md`)
+### Design System Drift Analysis (vs `docs/frontend/Design.md`)
 1. **Omitted Hover Tokens**: `primary-hover` (`#18512c`) and `on-primary-container` (`#8fca9b`) specified in `Design.md` were not configured in `tailwind.config.js`; UI elements use `hover:bg-primary-container` or `hover:bg-surface-2` instead.
 2. **Omitted Tertiary Tokens**: `tertiary` (`#003d28`), `tertiary-container` (`#00573a`), and `on-tertiary-container` (`#40d399`) from `Design.md` were omitted from the Tailwind configuration.
 3. **Surface Scale Simplification**: `Design.md` specified 4 surface levels (`surface-1` through `surface-4`). The codebase simplified this to `surface` (`#ffffff`) and `surface-2` (`#f6f3f2`).

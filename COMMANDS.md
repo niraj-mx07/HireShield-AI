@@ -1,0 +1,191 @@
+# HireShield-AI — Developer Command Cheatsheet
+
+A quick-reference guide for running, training, testing, and developing across the **HireShield-AI** full-stack repository.
+
+---
+
+## Table of Contents
+1. [Quick Start (Run Everything)](#1-quick-start-run-everything)
+2. [Backend (FastAPI)](#2-backend-fastapi)
+3. [Frontend (React + Vite)](#3-frontend-react--vite)
+4. [Machine Learning Pipeline](#4-machine-learning-pipeline)
+5. [Docker Compose](#5-docker-compose)
+6. [Troubleshooting & FAQs](#6-troubleshooting--faqs)
+
+---
+
+## 1. Quick Start (Run Everything)
+
+To run the complete system locally, open two separate terminal windows:
+
+### Terminal 1: Backend API
+```powershell
+cd c:\Users\new\HireShield-AI\backend
+uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
+```
+> API runs at: **http://127.0.0.1:8000**  
+> Swagger Documentation: **http://127.0.0.1:8000/docs**  
+> Health Check: **http://127.0.0.1:8000/health**
+
+### Terminal 2: Frontend
+```powershell
+cd c:\Users\new\HireShield-AI\frontend
+npm run dev
+```
+> Web UI runs at: **http://localhost:3000**
+
+---
+
+## 2. Backend (FastAPI)
+
+All backend commands are run from the `backend/` folder:
+
+```powershell
+cd c:\Users\new\HireShield-AI\backend
+```
+
+### Install Dependencies
+```powershell
+pip install -r requirements.txt
+```
+
+### Start Backend Development Server
+```powershell
+# Default port 8000 with hot-reload
+uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
+
+# Run on an alternate port if 8000 is occupied
+uvicorn app.main:app --reload --host 127.0.0.1 --port 8001
+```
+
+### Run from Root Directory
+```powershell
+python -m uvicorn backend.app.main:app --reload --port 8000
+```
+
+### Run Tests
+```powershell
+# Run all backend tests
+pytest
+
+# Run tests with verbose output
+pytest -v
+
+# Run a specific test suite
+pytest tests/test_job_content_analyzer.py
+pytest tests/test_risk_engine.py
+```
+
+---
+
+## 3. Frontend (React + Vite)
+
+All frontend commands are run from the `frontend/` folder:
+
+```powershell
+cd c:\Users\new\HireShield-AI\frontend
+```
+
+### Install Dependencies
+```powershell
+npm install
+```
+
+### Start Local Development Server
+```powershell
+npm run dev
+```
+
+### Build for Production
+```powershell
+npm run build
+```
+
+### Preview Production Build
+```powershell
+npm run preview
+```
+
+---
+
+## 4. Machine Learning Pipeline
+
+All ML commands are run from the repository root (`c:\Users\new\HireShield-AI`):
+
+```powershell
+cd c:\Users\new\HireShield-AI
+```
+
+### 1. Download & Verify Datasets
+Downloads the Real/Fake Job Postings dataset into `ml/data/raw/`:
+```powershell
+python -m ml.training.download_data
+```
+
+### 2. Preprocess & Split Data
+Cleans HTML tags, combines features, and creates stratified 80/20 train and test sets in `ml/data/processed/`:
+```powershell
+python -m ml.training.preprocess
+```
+
+### 3. Train Model
+Trains the classifiers, extracts TF-IDF n-grams + heuristic features, evaluates metrics, and outputs artifacts:
+```powershell
+# Train boosted model (TF-IDF + heuristic risk signals + soft-voting ensemble)
+python -u -m ml.training.train_boosted
+
+# Train baseline models (standard TF-IDF + Logistic Regression & Random Forest)
+python -m ml.training.train_baseline
+```
+
+### Output Artifacts
+* Trained Model: `ml/artifacts/best_model.joblib`
+* TF-IDF Vectorizer: `ml/artifacts/tfidf_vectorizer.joblib`
+* Metrics & Benchmark: `ml/evaluation/metrics.json`
+* Comparison Plots: `ml/evaluation/plots/`
+
+---
+
+## 5. Docker Compose
+
+Run the entire application stack (Frontend, Backend, and MongoDB) via Docker:
+
+```powershell
+# Start all services in the background
+docker compose up -d
+
+# View real-time logs
+docker compose logs -f
+
+# Stop all containers
+docker compose down
+```
+
+---
+
+## 6. Troubleshooting & FAQs
+
+### Port Conflict `[WinError 10013]` / Port 8000 in use
+If you get `An attempt was made to access a socket in a way forbidden by its access permissions`, another process is already listening on port 8000.
+
+**Find and terminate the process holding port 8000 (PowerShell):**
+```powershell
+# Find PID
+Get-NetTCPConnection -LocalPort 8000 -ErrorAction SilentlyContinue | Select-Object OwningProcess
+
+# Stop process by PID (replace 1234 with actual PID)
+Stop-Process -Id 1234 -Force
+```
+
+Or simply run uvicorn on an alternate port:
+```powershell
+uvicorn app.main:app --reload --port 8001
+```
+*(Remember to adjust `VITE_API_BASE_URL=http://127.0.0.1:8001` in `frontend/.env` if changing the backend port)*.
+
+### MongoDB Connection Warning
+The assessment engine runs standalone with in-memory rules and ML inference. If MongoDB is not running locally, database history persistence is skipped gracefully without interrupting analysis.
+To start MongoDB locally with Docker:
+```powershell
+docker run -d -p 27017:27017 --name hireshield-mongo mongo:4.4   # 4.4 = last release that runs without CPU AVX support
+```
