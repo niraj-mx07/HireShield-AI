@@ -28,6 +28,7 @@ async def analyze(
     company_name: str | None = None,
     message: str | None = None,
     page_text: str | None = None,
+    document_text: str | None = None,
     **kwargs,
 ) -> CategoryResult:
     """Analyse job-posting content and recruiter messages for risk indicators using ML text classification.
@@ -39,6 +40,8 @@ async def analyze(
         page_text: Visible text retrieved from the listing URL (when the user
             granted consent and the page was fetched via the web-retrieval
             service).
+        document_text: Plain text extracted from an uploaded offer letter /
+            job PDF.  Lets document-only submissions be classified too.
 
     Returns:
         A :class:`CategoryResult` with score (0–100), explainable risk factors,
@@ -48,7 +51,7 @@ async def analyze(
     # 1. Check if input text is available
     text_components = [
         p.strip()
-        for p in (company_name, description, message, page_text)
+        for p in (company_name, description, message, page_text, document_text)
         if p and p.strip()
     ]
     if not text_components:

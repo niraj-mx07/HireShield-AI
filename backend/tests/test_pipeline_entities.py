@@ -198,3 +198,108 @@ async def test_controlled_retrieval_failure_does_not_break_assessment(
     )
 
     assert response.status == AssessmentStatus.COMPLETED
+
+
+# ---------------------------------------------------------------------------
+# Document-derived inputs raise evidence coverage
+# ---------------------------------------------------------------------------
+
+# Contains a company label, a listing URL and recruiter contacts — exactly
+# the fields a real offer letter repeats and users rarely retype.
+_OFFER_LETTER = (
+    b"OFFER OF EMPLOYMENT\n"
+    b"\n"
+    b"Company: Global Fast Data Entry Services Ltd\n"
+    b"Website: https://globalfastdataentry.example.com/careers\n"
+    b"\n"
+    b"Dear Candidate,\n"
+    b"You have been selected for the Data Entry Operator role.\n"
+    b"Apply before joining by contacting hr.team@acme-jobs.com or\n"
+    b"call +91 98765 43210 for assistance.\n"
+    b"\n"
+    b"A refundable registration fee of Rs 5000 is required to process\n"
+    b"your onboarding kit.\n"
+)
+
+
+@pytest.mark.asyncio
+async def test_document_alone_unlocks_full_coverage(fake_db, offline_analyzers):
+    """A single upload supplies every missing input → confidence 1.00."""
+    response = await pipeline.run_assessment(
+        AssessmentRequest(),
+        document_bytes=_OFFER_LETTER,
+        document_filename="offer_letter.txt",
+    )
+
+    assert {"url", "company_name", "recruiter_email", "recruiter_phone"} <= set(
+        response.document_derived_inputs
+    )
+    skipped = [cs.category for cs in response.category_scores if not cs.analyzed]
+    assert skipped == [], f"categories not analyzed: {skipped}"
+    assert response.confidence == 1.0
+
+
+@pytest.mark.asyncio
+async def test_user_input_is_never_overridden_by_document(
+    fake_db, offline_analyzers
+):
+    """Typed values win; only the untouched fields get derived."""
+    request = AssessmentRequest(
+        company_name="Typed By User Ltd",
+        recruiter_email="typed@example.com",
+    )
+
+    response = await pipeline.run_assessment(
+        request,
+        document_bytes=_OFFER_LETTER,
+        document_filename="offer_letter.txt",
+    )
+
+    assert request.company_name == "Typed By User Ltd"
+    assert request.recruiter_email == "typed@example.com"
+    assert "company_name" not in response.document_derived_inputs
+    assert "recruiter_email" not in response.document_derived_inputs
+    assert "url" in response.document_derived_inputs
+    assert response.status == AssessmentStatus.COMPLETED
+
+
+@pytest.mark.asyncio
+async def test_derived_url_still_respects_consent_gate(
+    fake_db, offline_analyzers, monkeypatch
+):
+    """A URL mined from the document never bypasses the consent gate."""
+    from app.services import web_retrieval
+
+    async def boom(*_args, **_kwargs):
+        raise AssertionError("page retrieval must be consent-gated")
+
+    monkeypatch.setattr(web_retrieval, "fetch_page", boom)
+
+    response = await pipeline.run_assessment(
+        AssessmentRequest(),
+        document_bytes=_OFFER_LETTER,
+        document_filename="offer_letter.txt",
+    )
+
+    assert "url" in response.document_derived_inputs
+    assert response.status == AssessmentStatus.COMPLETED
+
+
+@pytest.mark.asyncio
+async def test_derived_field_names_are_persisted_but_values_are_not(fake_db):
+    """Only the auto-filled field *names* reach the database."""
+    response = await pipeline.run_assessment(
+        AssessmentRequest(),
+        document_bytes=_OFFER_LETTER,
+        document_filename="offer_letter.txt",
+    )
+
+    assert fake_db.assessments.updated
+    _flt, update = fake_db.assessments.updated[-1]
+    stored = update["$set"]
+    assert stored["document_derived_inputs"] == response.document_derived_inputs
+    # Field values (PII) must never be written outside input_summary flags.
+    assert "company_name" not in stored
+    assert "recruiter_email" not in stored
+    assert "url" not in stored
+    assert "entities" not in stored

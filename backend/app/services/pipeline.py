@@ -36,7 +36,7 @@ from app.models.schemas import (
     RiskFactor,
     Severity,
 )
-from app.services import nlp_entities, web_retrieval
+from app.services import document_mining, nlp_entities, web_retrieval
 from app.services.risk_engine import score_assessment
 from app.utils.privacy import build_input_summary, redact_pii
 
@@ -60,6 +60,24 @@ async def run_assessment(
     """
     assessment_id = uuid.uuid4().hex
     consent = request.consent_for_external_lookups
+
+    # ------------------------------------------------------------------
+    # Extract document text and mine inputs the user left blank
+    # ------------------------------------------------------------------
+    # This runs before the input summary, the DB record, the retrieval step
+    # and the analyzers so everything downstream sees the same (possibly
+    # document-enriched) inputs: offer letters routinely repeat the company
+    # name, listing URL and recruiter contacts the user did not retype.
+    from app.analyzers.document_analysis import extract_document_text
+    extracted_doc_text = extract_document_text(document_bytes, document_filename)
+    document_derived_inputs = document_mining.fill_missing_fields(
+        request, extracted_doc_text
+    )
+    if document_derived_inputs:
+        logger.info(
+            "Assessment %s — inputs derived from document: %s",
+            assessment_id, ", ".join(document_derived_inputs),
+        )
 
     logger.info(
         "Starting assessment %s — inputs: %s",
@@ -94,11 +112,8 @@ async def run_assessment(
     await db.assessments.insert_one(record.model_dump())
 
     # ------------------------------------------------------------------
-    # 2. Extract Document Text (if any) and Run All Analyzers
+    # 2. Run All Analyzers (document text was extracted above)
     # ------------------------------------------------------------------
-    from app.analyzers.document_analysis import extract_document_text
-    extracted_doc_text = extract_document_text(document_bytes, document_filename)
-
     # Retrieve the public listing page once, when the user consented and
     # retrieval is enabled.  The parsed page is shared by the job-content
     # analyzer (page text) and the company-verification analyzer (live checks).
@@ -120,6 +135,7 @@ async def run_assessment(
         company_name=request.company_name,
         message=request.message,
         page_text=page_text,
+        document_text=extracted_doc_text,
     )
     results[RiskCategory.COMPANY_VERIFICATION] = await company_verification.analyze(
         company_name=request.company_name,
@@ -269,6 +285,7 @@ async def run_assessment(
         category_scores=category_scores,
         risk_factors=risk_factors,
         active_inputs=active_inputs,
+        document_derived_inputs=document_derived_inputs,
         entities=entities,
         created_at=now,
     )
@@ -284,6 +301,7 @@ async def run_assessment(
             "category_scores": [cs.model_dump() for cs in category_scores],
             "risk_factors": [rf.model_dump() for rf in risk_factors],
             "active_inputs": active_inputs,
+            "document_derived_inputs": document_derived_inputs,
             "updated_at": now.isoformat(),
         }},
     )
