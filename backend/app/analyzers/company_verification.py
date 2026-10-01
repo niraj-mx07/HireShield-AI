@@ -16,6 +16,7 @@ from app.models.schemas import (
     RiskFactor,
     Severity,
 )
+from app.services import web_retrieval
 
 logger = logging.getLogger(__name__)
 
@@ -164,9 +165,22 @@ async def analyze(
     company_name: str | None = None,
     url: str | None = None,
     consent: bool = False,
+    page_extraction: "web_retrieval.PageExtraction | None" = None,
+    page_attempted: bool = False,
     **kwargs,
 ) -> CategoryResult:
     """Verify company authenticity and cross-check against careers footprint.
+
+    Args:
+        company_name: Claimed employer name.
+        url: Listing URL supplied by the user.
+        consent: Whether the user consented to external lookups. Live HTTP
+            verification of the listing page only runs when this is ``True``.
+        page_extraction: Page already retrieved by the pipeline, reused to avoid
+            a duplicate fetch.
+        page_attempted: ``True`` when the pipeline already attempted retrieval,
+            so a ``None`` ``page_extraction`` means the fetch failed rather than
+            was skipped.
 
     Returns:
         A :class:`CategoryResult` with score (0–100), risk factors, and analyzed=True/False.
@@ -274,6 +288,85 @@ async def analyze(
                     confidence=0.60,
                 )
             )
+
+    # 2. Live listing-page verification via HTTP retrieval (consent-gated).
+    #
+    # Uses the ``requests`` + ``BeautifulSoup`` retrieval service to fetch the
+    # public careers / listing page and confirm the claimed posting actually
+    # exists, and to detect payment prompts that indicate a scam page.
+    if consent and has_url and url_domain and web_retrieval.is_enabled():
+        is_trusted_board = any(
+            url_domain == tb or url_domain.endswith(f".{tb}") for tb in TRUSTED_BOARDS
+        )
+        if not is_trusted_board:
+            if page_attempted:
+                page = page_extraction  # already fetched by the pipeline
+            else:
+                page = await web_retrieval.fetch_page(url)
+            if page is None:
+                base_score += 10.0
+                risk_factors.append(
+                    RiskFactor(
+                        category=RiskCategory.COMPANY_VERIFICATION,
+                        severity=Severity.MEDIUM,
+                        description="Live listing page could not be retrieved for verification.",
+                        evidence=(
+                            f"The listing URL '{url_domain}' did not return a retrievable "
+                            "job page (unreachable, non-HTML, or blocked). Unable to "
+                            "independently confirm the posting exists."
+                        ),
+                        source="live_careers_page_verifier",
+                        confidence=0.50,
+                    )
+                )
+            elif page.payment_terms:
+                base_score += 60.0
+                terms = ", ".join(page.payment_terms[:4])
+                risk_factors.append(
+                    RiskFactor(
+                        category=RiskCategory.COMPANY_VERIFICATION,
+                        severity=Severity.HIGH,
+                        description="Retrieved listing page solicits direct payment from applicants.",
+                        evidence=(
+                            f"Live page content at '{page.final_url or url_domain}' contains "
+                            f"payment solicitation terms: {terms}. Legitimate employers never "
+                            "collect fees on the application page."
+                        ),
+                        source="live_careers_page_verifier",
+                        confidence=0.93,
+                    )
+                )
+            elif page.has_job_posting:
+                risk_factors.append(
+                    RiskFactor(
+                        category=RiskCategory.COMPANY_VERIFICATION,
+                        severity=Severity.LOW,
+                        description="Live listing page retrieved and job posting confirmed.",
+                        evidence=(
+                            f"Retrieved '{page.final_url or url_domain}' (HTTP {page.status_code}); "
+                            f"page contains recognisable job-posting content"
+                            + (" and a structured JobPosting record" if page.json_ld_job_posting else "")
+                            + "."
+                        ),
+                        source="live_careers_page_verifier",
+                        confidence=0.85,
+                    )
+                )
+            else:
+                base_score += 25.0
+                risk_factors.append(
+                    RiskFactor(
+                        category=RiskCategory.COMPANY_VERIFICATION,
+                        severity=Severity.MEDIUM,
+                        description="Retrieved page contains no verifiable job-posting content.",
+                        evidence=(
+                            f"'{page.final_url or url_domain}' was reachable (HTTP {page.status_code}) "
+                            "but showed no recognisable job description, requirements, or apply form."
+                        ),
+                        source="live_careers_page_verifier",
+                        confidence=0.70,
+                    )
+                )
 
     final_score = round(min(max(base_score, 0.0), 100.0), 2)
     return CategoryResult(score=final_score, risk_factors=risk_factors, analyzed=True)

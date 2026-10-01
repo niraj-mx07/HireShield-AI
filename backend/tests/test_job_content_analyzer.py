@@ -66,3 +66,27 @@ async def test_empty_input_returns_unanalyzed():
 
     result_whitespace = await job_content.analyze(description="   ", company_name="")
     assert result_whitespace.analyzed is False
+
+
+@pytest.mark.asyncio
+async def test_retrieved_page_text_alone_is_analyzed():
+    """Text retrieved from the listing URL is analysed on its own."""
+    result = await job_content.analyze(
+        page_text=(
+            "Job description: data entry clerk. Requirements: typing speed 40 wpm. "
+            "Salary: Rs 20000 per month. Apply now and upload resume."
+        )
+    )
+
+    assert result.analyzed is True
+
+
+@pytest.mark.asyncio
+async def test_retrieved_page_text_combines_with_description():
+    """Page text supplements the submitted description rather than replacing it."""
+    result = await job_content.analyze(
+        description="Senior Software Engineer",
+        page_text="Responsibilities include building distributed systems.",
+    )
+
+    assert result.analyzed is True

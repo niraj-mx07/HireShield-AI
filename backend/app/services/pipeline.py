@@ -31,10 +31,12 @@ from app.models.schemas import (
     AssessmentResponse,
     AssessmentStatus,
     CategoryResult,
+    ExtractedEntity,
     RiskCategory,
     RiskFactor,
     Severity,
 )
+from app.services import nlp_entities, web_retrieval
 from app.services.risk_engine import score_assessment
 from app.utils.privacy import build_input_summary, redact_pii
 
@@ -97,17 +99,34 @@ async def run_assessment(
     from app.analyzers.document_analysis import extract_document_text
     extracted_doc_text = extract_document_text(document_bytes, document_filename)
 
+    # Retrieve the public listing page once, when the user consented and
+    # retrieval is enabled.  The parsed page is shared by the job-content
+    # analyzer (page text) and the company-verification analyzer (live checks).
+    page = None
+    page_attempted = False
+    if consent and web_retrieval.is_enabled() and request.url and request.url.strip():
+        page_attempted = True
+        try:
+            page = await web_retrieval.fetch_page(request.url)
+        except Exception as exc:  # defensive — fetch_page never raises
+            logger.warning("Web retrieval raised unexpectedly: %s", exc)
+            page = None
+    page_text = page.text if (page and page.text) else None
+
     results: dict[RiskCategory, CategoryResult] = {}
 
     results[RiskCategory.JOB_CONTENT] = await job_content.analyze(
         description=request.description,
         company_name=request.company_name,
         message=request.message,
+        page_text=page_text,
     )
     results[RiskCategory.COMPANY_VERIFICATION] = await company_verification.analyze(
         company_name=request.company_name,
         url=request.url,
         consent=consent,
+        page_extraction=page,
+        page_attempted=page_attempted,
     )
     results[RiskCategory.RECRUITER_VERIFICATION] = await recruiter_verification.analyze(
         recruiter_email=request.recruiter_email,
@@ -180,6 +199,40 @@ async def run_assessment(
 
 
     # ------------------------------------------------------------------
+    # 2c. Named-entity extraction (structured identifiers + NLP NER)
+    # ------------------------------------------------------------------
+    entities: list[ExtractedEntity] = []
+    try:
+        ner_input = "\n".join(
+            part.strip()
+            for part in (
+                request.description,
+                request.message,
+                extracted_doc_text,
+                page_text,
+            )
+            if part and part.strip()
+        )
+        extraction = nlp_entities.extract_entities(ner_input)
+        entities = [
+            ExtractedEntity(
+                text=entity.text,
+                label=entity.label,
+                source=entity.source,
+                confidence=entity.confidence,
+            )
+            for entity in extraction.entities
+        ]
+        logger.info(
+            "Assessment %s — extracted %d entities (provider=%s)",
+            assessment_id, len(entities), extraction.provider,
+        )
+    except Exception as exc:  # defensive — extract_entities never raises
+        logger.warning("Entity extraction error: %s", exc)
+        entities = []
+
+
+    # ------------------------------------------------------------------
     # 3. Aggregate via risk engine
     # ------------------------------------------------------------------
     risk_score, band, rec, confidence, category_scores, risk_factors = score_assessment(results)
@@ -216,6 +269,7 @@ async def run_assessment(
         category_scores=category_scores,
         risk_factors=risk_factors,
         active_inputs=active_inputs,
+        entities=entities,
         created_at=now,
     )
 

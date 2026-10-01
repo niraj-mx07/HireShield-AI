@@ -27,6 +27,7 @@ async def analyze(
     description: str | None = None,
     company_name: str | None = None,
     message: str | None = None,
+    page_text: str | None = None,
     **kwargs,
 ) -> CategoryResult:
     """Analyse job-posting content and recruiter messages for risk indicators using ML text classification.
@@ -35,6 +36,9 @@ async def analyze(
         description: Raw job description text.
         company_name: Name of the hiring company/organisation.
         message: Recruiter communication or task description.
+        page_text: Visible text retrieved from the listing URL (when the user
+            granted consent and the page was fetched via the web-retrieval
+            service).
 
     Returns:
         A :class:`CategoryResult` with score (0–100), explainable risk factors,
@@ -42,7 +46,11 @@ async def analyze(
         ``analyzed=False`` if input was missing or model artifacts were unavailable.
     """
     # 1. Check if input text is available
-    text_components = [p.strip() for p in (company_name, description, message) if p and p.strip()]
+    text_components = [
+        p.strip()
+        for p in (company_name, description, message, page_text)
+        if p and p.strip()
+    ]
     if not text_components:
         return CategoryResult(score=0.0, risk_factors=[], analyzed=False)
 

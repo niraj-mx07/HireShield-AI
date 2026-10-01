@@ -1,0 +1,29 @@
+# HireShield-AI — Optional NLP Entity-Extraction Dependencies
+#
+# These packages power the contextual named-entity layer in
+# backend/app/services/nlp_entities.py.  They are intentionally separated from
+# the base requirements so the API container stays small: the NER service
+# imports them lazily and falls back to deterministic regex identifiers when
+# they are not installed, so the backend always boots.
+#
+# Install with:
+#     pip install -r backend/requirements-nlp.txt
+#     python -m spacy download en_core_web_sm   # spaCy model (see note below)
+#
+# Provider priority (first available wins):
+#   1. spaCy            (fast, CPU-friendly)         -> default
+#   2. Transformers     (higher accuracy, slower)    -> fallback
+#   3. regex only       (always available)           -> last resort
+#
+# NOTE: the spaCy model wheel for en_core_web_sm is not on PyPI.  The pinned
+# URL below matches spaCy 3.8.x; for other spaCy versions use
+# `python -m spacy download en_core_web_sm` instead.
+
+# --- Provider 1: spaCy ---
+spacy==3.8.16
+https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.8.0/en_core_web_sm-3.8.0-py3-none-any.whl
+
+# --- Provider 2: Hugging Face Transformers (optional, large) ---
+# Uncomment to enable the transformer NER fallback (pulls in PyTorch).
+# transformers==4.44.2
+# torch==2.4.1

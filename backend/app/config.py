@@ -41,6 +41,17 @@ class Settings(BaseSettings):
     whois_api_key: str = ""
     linkedin_api_key: str = ""
 
+    # --- External page retrieval (requests + BeautifulSoup) ---
+    web_retrieval_enabled: bool = True
+    web_retrieval_timeout: float = 6.0
+    web_retrieval_max_bytes: int = 524288
+
+    # --- Named-entity recognition (spaCy / Hugging Face Transformers) ---
+    nlp_ner_enabled: bool = True
+    transformers_ner_enabled: bool = True
+    spacy_model: str = "en_core_web_sm"
+    transformers_ner_model: str = "dslim/bert-base-NER"
+
     @property
     def cors_origin_list(self) -> List[str]:
         """Parse comma-separated CORS_ORIGINS into a list."""

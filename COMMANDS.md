@@ -46,8 +46,45 @@ cd c:\Users\new\HireShield-AI\backend
 
 ### Install Dependencies
 ```powershell
+# Base requirements (FastAPI, MongoDB, ML artifacts, BeautifulSoup, pypdf)
 pip install -r requirements.txt
+
+# Optional: contextual NLP entity extraction (spaCy + en_core_web_sm wheel).
+# Skip this and the NER service still works using regex identifiers only.
+pip install -r requirements-nlp.txt
+
+# Equivalent manual install (if the wheel URL in requirements-nlp.txt is stale)
+pip install spacy
+python -m spacy download en_core_web_sm
 ```
+
+### External Verification & NLP Toggles
+`backend/app/services/web_retrieval.py` (public page retrieval) and
+`backend/app/services/nlp_entities.py` (regex + NER entity extraction) both read
+their switches from `.env` and degrade gracefully when disabled:
+
+```dotenv
+# .env
+WEB_RETRIEVAL_ENABLED=true      # master switch for external page retrieval
+WEB_RETRIEVAL_TIMEOUT=6.0       # per-request timeout (seconds)
+WEB_RETRIEVAL_MAX_BYTES=524288  # response size cap (512 KB)
+NLP_NER_ENABLED=true            # contextual NER (regex identifiers always run)
+TRANSFORMERS_NER_ENABLED=true   # allow Hugging Face fallback if spaCy is absent
+SPACY_MODEL=en_core_web_sm
+TRANSFORMERS_NER_MODEL=dslim/bert-base-NER
+```
+
+Smoke-test that the spaCy provider is actually loaded (prints the model status
+and a sample extraction):
+
+```powershell
+python -c "from app.services import nlp_entities as n; print(n._load_spacy() is not None); print([(e.label, e.text) for e in n.extract_entities('Ravi Kumar works at Acme Corporation in Bengaluru.').entities])"
+```
+
+> Entity extraction requires `consent_for_external_lookups=true` **only** for page
+> retrieval; text you submit is analysed locally regardless. Retrieved entities are
+> returned in the API response and never persisted.
+
 
 ### Start Backend Development Server
 ```powershell
@@ -74,6 +111,11 @@ pytest -v
 # Run a specific test suite
 pytest tests/test_job_content_analyzer.py
 pytest tests/test_risk_engine.py
+
+# New feature suites: page retrieval, NLP entities, pipeline wiring
+pytest tests/test_web_retrieval.py
+pytest tests/test_nlp_entities.py
+pytest tests/test_pipeline_entities.py
 ```
 
 ---
