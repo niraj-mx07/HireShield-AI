@@ -85,19 +85,36 @@ async def create_assessment_with_upload(
     company_name: Optional[str] = Form(None),
     recruiter_email: Optional[str] = Form(None),
     recruiter_name: Optional[str] = Form(None),
+    recruiter_phone: Optional[str] = Form(None),
+    message: Optional[str] = Form(None),
     consent_for_external_lookups: bool = Form(False),
 ) -> AssessmentResponse:
-    """Create and run a new risk assessment with a document upload."""
+    """Create and run a new risk assessment with a document upload.
+
+    Every text field the JSON endpoint accepts is also accepted here, so
+    attaching a file never silently drops the other inputs the user provided.
+    """
+    document_bytes = await document.read()
+
+    # Mirror the frontend's stated 10MB limit; an oversized upload is rejected
+    # before any analysis work happens.
+    if len(document_bytes) > 10 * 1024 * 1024:
+        raise HTTPException(
+            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            detail="Document exceeds the 10MB upload limit.",
+        )
+
     request = AssessmentRequest(
         url=url,
         description=description,
         company_name=company_name,
         recruiter_email=recruiter_email,
         recruiter_name=recruiter_name,
+        recruiter_phone=recruiter_phone,
+        message=message,
         consent_for_external_lookups=consent_for_external_lookups,
     )
 
-    document_bytes = await document.read()
     return await run_assessment(
         request,
         document_bytes=document_bytes,

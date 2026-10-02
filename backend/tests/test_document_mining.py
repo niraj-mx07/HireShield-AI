@@ -148,3 +148,60 @@ def test_fill_with_no_document_is_a_noop():
 
     assert document_mining.fill_missing_fields(request, None) == []
     assert request.company_name == "Acme"
+
+
+# ---------------------------------------------------------------------------
+# Document headings must never be mined as the hiring company
+#
+# spaCy tags an offer letter's block-style title ("OFFER OF EMPLOYMENT") as
+# ORG with high confidence, and it appears *before* the real company name.  When
+# it won, the company-verification analyzer was handed a document title as if it
+# were the employer, inventing an unmatchable-company risk factor.
+# ---------------------------------------------------------------------------
+
+def test_document_heading_is_not_a_company():
+    for heading in (
+        "OFFER OF EMPLOYMENT",
+        "APPOINTMENT LETTER",
+        "EMPLOYMENT CONTRACT",
+        "CERTIFICATE OF EXPERIENCE",
+    ):
+        assert document_mining._is_document_heading(heading) is True
+        assert document_mining._is_plausible_company(heading) is False
+
+
+def test_heading_containing_a_title_word_is_still_a_real_company():
+    """A real all-caps name that merely contains a title word must survive."""
+    value = "ACME EMPLOYMENT SOLUTIONS PVT LTD"
+    assert document_mining._is_document_heading(value) is False
+    assert document_mining._is_plausible_company(value) is True
+
+
+def test_heading_entity_loses_to_the_real_company():
+    """The regression that shipped: heading ORG first, real name later."""
+    entities = [
+        Entity(text="OFFER OF EMPLOYMENT", label="ORG", source="spacy", confidence=0.8),
+        Entity(text="Software", label="ORG", source="spacy", confidence=0.8),
+        Entity(
+            text="Acme Corp.\nCompany\nAcme Corp",
+            label="ORG",
+            source="spacy",
+            confidence=0.8,
+        ),
+    ]
+
+    # The multi-line NER artefact spans a sentence and a table row, so it is
+    # not a usable name; the heading is rejected outright.  Nothing is invented.
+    assert document_mining._company_from_entities(entities) is None
+
+
+def test_multiline_ner_artifact_is_rejected():
+    assert document_mining._is_plausible_company("Acme Corp.\nCompany\nAcme Corp") is False
+
+
+def test_two_line_table_label_is_mined():
+    """docx/PDF tables put the label and its value on consecutive lines."""
+    text = "OFFER OF EMPLOYMENT\nWe are pleased to offer you the role of Engineer at Acme Corp.\nCompany\nAcme Corp"
+
+    assert document_mining._company_from_label(text) == "Acme Corp"
+    assert document_mining.mine_document_fields(text)["company_name"] == "Acme Corp"

@@ -62,10 +62,15 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# CORS — allow the frontend origins specified in configuration.
+# CORS — allow the frontend origins specified in configuration, plus any
+# localhost/127.0.0.1 dev port.  Vite silently moves to the next free port when
+# 3000 is taken, and a non-whitelisted origin blocks the upload request in the
+# browser even though the API itself is reachable.  Production origins still
+# come from CORS_ORIGINS only.
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origin_list,
+    allow_origin_regex=r"https?://(localhost|127\.0\.0\.1)(:\d+)?",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

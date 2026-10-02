@@ -32,6 +32,26 @@ ml/artifacts/*.joblib
 ml/artifacts/*.pkl
 ml/artifacts/*.bin
 
+# Notebook checkpoints
+ml/notebooks/.ipynb_checkpoints/
+
+# Size/orientation-normalised copies of the certificate dataset.  Derived from
+# ml/data/raw (already ignored) and rebuilt by ml/training/train_certificate_cnn.py,
+# so committing them would add ~11MB of regenerable images to every clone.
+ml/notebooks/certificates_normalised/
+
+# Editor / agent tool state
+.freebuff/
+
+# Vision weights: keep only the exported production model (see below)
+ml/artifacts/*.onnx
+ml/artifacts/*.pt
+ml/artifacts/*.pth
+
 # Explicitly track lightweight production models for cloud deployment (<3MB total)
 !ml/artifacts/best_model.joblib
 !ml/artifacts/tfidf_vectorizer.joblib
+!ml/artifacts/certificate_cnn.onnx
+!ml/artifacts/certificate_cnn.json
+# Local vision-training venv (torch is training-only, never shipped)
+.ml-venv/

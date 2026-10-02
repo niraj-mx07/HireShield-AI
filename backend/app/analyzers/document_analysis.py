@@ -3,6 +3,14 @@
 Extracts text from uploaded PDF or document offer letters using pypdf.
 Reviews document structure, payment / deposit clauses, fake stamp annotations,
 and non-standard HR onboarding procedures.
+
+An uploaded **certificate image** (PNG/JPG) or a scanned PDF additionally gets a
+visual check from the fine-tuned ONNX forgery model
+(:mod:`app.services.certificate_forensics`).  That model runs on 287 training
+images whose class split is partly explained by file size and orientation, so its
+verdict is deliberately capped at ``Severity.MEDIUM``: a high-severity factor
+would force the engine's 65-point floor and let this single weak signal flip the
+recommendation to *DON'T APPLY*.
 """
 
 from __future__ import annotations
@@ -17,13 +25,29 @@ from app.models.schemas import (
     RiskFactor,
     Severity,
 )
+from app.services import certificate_forensics
 
 logger = logging.getLogger(__name__)
+
+# Image formats the forgery model can decode.  Binary image bytes must never be
+# decoded as text — that produces mojibake which trips the clause regexes below
+# and invents risk that the image does not contain.
+_IMAGE_SUFFIXES = (".png", ".jpg", ".jpeg", ".bmp", ".webp", ".tif", ".tiff")
+
+# Score deltas for the visual forgery signal.  Kept small because the model is a
+# secondary signal: at the 0.10 document weight these contribute ±2.2 / −0.8
+# points to the final 0–100 score, far too little to move a band on its own.
+_FORGERY_FLAGGED_DELTA = 22.0
+_FORGERY_CLEAR_DELTA = -8.0
 
 
 def extract_document_text(document_bytes: bytes | None, filename: str | None = None) -> str:
     """Extract readable text from PDF bytes or raw text document."""
     if not document_bytes:
+        return ""
+
+    # An uploaded image is scored by the visual model, not by text extraction.
+    if filename and filename.lower().endswith(_IMAGE_SUFFIXES):
         return ""
 
     text = ""
@@ -37,6 +61,26 @@ def extract_document_text(document_bytes: bytes | None, filename: str | None = N
                 text += f"\n{page_text}"
         except Exception as exc:
             logger.warning("pypdf extraction failed on %s: %s", filename, exc)
+
+    # .docx: binary OOXML — need a real parser (zip archive of XML parts).
+    if filename and filename.lower().endswith(".docx"):
+        try:
+            import docx as _docx  # python-docx
+            _blob = _docx.Document(io.BytesIO(document_bytes))
+            text = "\n".join(
+                paragraph.text for paragraph in _blob.paragraphs if paragraph.text.strip()
+            )
+            # Tables are a common place for fees / clauses in offer letters.
+            for table in _blob.tables:
+                for row in table.rows:
+                    for cell in row.cells:
+                        cell_text = cell.text.strip()
+                        if cell_text:
+                            text += "\n" + cell_text
+            if text.strip():
+                return text.strip()
+        except Exception as exc:
+            logger.warning("docx extraction failed on %s: %s", filename, exc)
 
     # If text is still empty or wasn't a PDF, attempt utf-8 / latin-1 decoding
     if not text.strip():
@@ -81,7 +125,12 @@ async def analyze(
     raw_text = document_text or extract_document_text(document_bytes, document_filename)
     pdf_meta = extract_pdf_metadata(document_bytes, document_filename)
 
-    if not raw_text.strip() and not pdf_meta:
+    # Visual forgery model (ONNX).  Run it before the "nothing to analyse" check
+    # so a lone certificate *image* still produces a result: image uploads yield
+    # no extractable text and no PDF metadata by design.
+    forgery_signal = certificate_forensics.analyse_document(document_bytes, document_filename)
+
+    if not raw_text.strip() and not pdf_meta and not forgery_signal.available:
         return CategoryResult(score=0.0, risk_factors=[], analyzed=False)
 
 
@@ -202,6 +251,50 @@ async def analyze(
                 confidence=0.85,
             )
         )
+
+    # 6. Visual forgery model — SECONDARY signal, capped at MEDIUM severity
+    #    A HIGH severity factor would trip the risk engine's 65-point floor and
+    #    let this model alone force a DON'T APPLY verdict, which its ~0.63
+    #    metadata-only baseline and 287-image training set do not justify.
+    if forgery_signal.available:
+        if forgery_signal.flagged:
+            base_score += _FORGERY_FLAGGED_DELTA
+            risk_factors.append(
+                RiskFactor(
+                    category=RiskCategory.DOCUMENT_ANALYSIS,
+                    severity=Severity.MEDIUM,
+                    description=(
+                        "Visual forgery model flags this certificate as possibly altered."
+                    ),
+                    evidence=(
+                        f"Fine-tuned MobileNetV3-Small scored p(forged)="
+                        f"{forgery_signal.fake_probability:.2f} against a "
+                        f"{forgery_signal.threshold:.2f} threshold. "
+                        "This is a secondary signal: the model was trained on a small "
+                        "public dataset and must be corroborated by other evidence "
+                        "before it affects a decision."
+                    ),
+                    source="certificate_cnn_onnx",
+                    confidence=0.55,
+                )
+            )
+        else:
+            base_score = max(base_score + _FORGERY_CLEAR_DELTA, 0.0)
+            risk_factors.append(
+                RiskFactor(
+                    category=RiskCategory.DOCUMENT_ANALYSIS,
+                    severity=Severity.LOW,
+                    description="Certificates visual layout appears consistent with a genuine document.",
+                    evidence=(
+                        f"Fine-tuned MobileNetV3-Small scored p(forged)="
+                        f"{forgery_signal.fake_probability:.2f}, below the "
+                        f"{forgery_signal.threshold:.2f} threshold. "
+                        "The absence of a forgery signal is not proof of authenticity."
+                    ),
+                    source="certificate_cnn_onnx",
+                    confidence=0.50,
+                )
+            )
 
     final_score = round(min(max(base_score, 0.0), 100.0), 2)
     return CategoryResult(score=final_score, risk_factors=risk_factors, analyzed=True)

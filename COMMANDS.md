@@ -100,6 +100,44 @@ uvicorn app.main:app --reload --host 127.0.0.1 --port 8001
 python -m uvicorn backend.app.main:app --reload --port 8000
 ```
 
+### Restart the Backend After Installing Dependencies or Swapping Models
+
+> **Do this whenever you `pip install` anything, retrain a model, or replace a
+> file in `ml/artifacts/`.** A running server keeps the interpreter state it was
+> started with, so it will **not** see the new package or model and will keep
+> serving results computed the old way — silently, with no error.
+
+This is not hypothetical. A stale server started before `python-docx` was
+installed kept decoding `.docx` uploads as raw bytes, so the extracted "text"
+was binary noise. The document analyzer then mined a company name out of that
+noise and reported a confident, completely fictional employer.
+
+```powershell
+# 1. Find what is holding port 8000
+ss -tlnp | grep :8000
+
+# 2. Stop it (use the PID from the output above)
+kill <PID>
+
+# 3. Start it again
+uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
+```
+
+Confirm the new process is the one answering:
+
+```powershell
+curl -s http://127.0.0.1:8000/health
+```
+
+> **Why `--reload` is not enough:** it watches your *source files*, not
+> `site-packages` or `ml/artifacts/`. Installing a dependency or replacing a
+> model requires a full restart either way.
+>
+> **Checkpoints that are worth verifying after a restart:** the health endpoint
+> responds, and `grep "Certificate CNN loaded" uvicorn.log` shows the model was
+> picked up. A silent skip there means the artifact is missing, not that the
+> analysis succeeded.
+
 ### Run Tests
 ```powershell
 # Run all backend tests
