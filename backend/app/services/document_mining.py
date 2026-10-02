@@ -47,6 +47,16 @@ _COMPANY_LABEL_RE = re.compile(
     r"[ \t]*(?P<value>[^\r\n]+?)\s*$"
 )
 
+# Word-processor tables put the label and its value on *separate* lines
+# ("Company" / "Acme Corp"), which is how every .docx offer letter lays out
+# its details table.  This second pattern handles that shape.
+_COMPANY_LABEL_NEXT_LINE_RE = re.compile(
+    r"(?im)^[ \t]*(?:[-*#>]+[ \t]*)*"
+    r"(?:company(?:[ \t]+name)?|organisation|organization|employer|firm)"
+    r"[ \t]*:?[ \t]*\r?\n"
+    r"[ \t]*(?P<value>[^\r\n]+?)[ \t]*$"
+)
+
 # When the labelled value runs into prose ("Company: Acme Ltd is pleased to
 # offer..."), cut at the start of the sentence tail.
 _VALUE_CUT_RE = re.compile(
@@ -64,10 +74,66 @@ _GENERIC_COMPANIES = {
     "employer", "the employer", "firm", "the firm",
 }
 
+# Document *headings* that a contextual NER model (spaCy in particular) tags as
+# ``ORG`` with high confidence -- "OFFER OF EMPLOYMENT", "APPOINTMENT LETTER".
+# They name the document, never the hiring organisation, so accepting one as a
+# company name poisons the company-verification analyzer with fiction.  Only
+# rejected when written in the all-caps block style real headings use, so a
+# genuine name that merely contains a word like "Employment" survives.
+_DOCUMENT_TITLE_WORDS = (
+    "offer", "employment", "appointment", "contract", "letter", "agreement",
+    "certificate", "acknowledgment", "acknowledgement", "undertaking", "notice",
+    "joining", "intimation", "confirmation", "declaration", "affidavit",
+    "memorandum", "proforma", "pro-forma", "application", "nomination",
+    "experience", "internship", "training", "resume", "curriculum vitae",
+)
+
+# Bare generic nouns that contextual NER models frequently tag as ``ORG``.  A
+# single word like "Software" names a field, not an employer, so accepting it
+# as a company is the same class of error as accepting a document heading.
+_GENERIC_NON_COMPANY = {
+    "software", "hardware", "engineering", "technology", "management",
+    "consulting", "services", "solutions", "systems", "analytics", "security",
+    "networks", "support", "operations", "finance", "accounts", "sales",
+    "marketing", "hr", "it", "admin", "team", "staff", "company", "office",
+    "bangalore", "mumbai", "delhi", "hyderabad", "chennai", "pune",
+}
+
+# Function words that carry no meaning in a heading, so they are ignored when
+# deciding whether every remaining word is a title word.
+_FILLER_WORDS = {
+    "of", "the", "a", "an", "for", "to", "and", "by", "on", "in", "at", "from",
+}
+
+
+def _is_document_heading(value: str) -> bool:
+    """True when *value* reads as a document title rather than a company name.
+
+    Two conditions must both hold, so a genuine all-caps company whose name
+    happens to contain a title word (``ACME EMPLOYMENT SOLUTIONS``) is kept:
+
+    * the span is written in capitals, the way headings are typeset; and
+    * *every* content word is a title word, so there is no distinguishing token
+      left over.  "OFFER OF EMPLOYMENT" qualifies; "ACME EMPLOYMENT SOLUTIONS"
+      does not, because "acme" and "solutions" are not title words.
+    """
+    letters = [ch for ch in value if ch.isalpha()]
+    if not letters:
+        return False
+    if not all(ch.isupper() for ch in letters):
+        return False
+    tokens = [t for t in re.findall(r"[a-z]+", value.lower()) if t not in _FILLER_WORDS]
+    if not tokens:
+        return False
+    return all(token in _DOCUMENT_TITLE_WORDS for token in tokens)
+
 
 def _company_from_label(document_text: str) -> str | None:
     """Extract ``Company: X`` style labelled values from *document_text*."""
     match = _COMPANY_LABEL_RE.search(document_text)
+    if match is None:
+        # Word-processor tables put the label and value on separate lines.
+        match = _COMPANY_LABEL_NEXT_LINE_RE.search(document_text)
     if not match:
         return None
     value = match.group("value").strip().strip("*#\"'“”‘’").strip()
@@ -185,5 +251,16 @@ def _is_plausible_company(value: str) -> bool:
     if "@" in cleaned or "://" in cleaned or lowered.startswith("www."):
         return False
     if any(ch.isdigit() for ch in cleaned):
+        return False
+    # A company name occupies one line.  A span carrying newlines is a NER
+    # artefact that ran a sentence and a table row together
+    # ("Acme Corp.\nCompany\nAcme Corp") -- never a usable name.
+    if "\n" in cleaned or "\r" in cleaned:
+        return False
+    if _is_document_heading(cleaned):
+        return False
+    # A bare industry word names a field, not an employer.  Multi-word names
+    # are exempt: "Software Solutions Ltd" is a plausible company.
+    if len(cleaned.split()) == 1 and cleaned.lower() in _GENERIC_NON_COMPANY:
         return False
     return True

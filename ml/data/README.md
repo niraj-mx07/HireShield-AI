@@ -25,6 +25,24 @@ HireShield-AI combines multiple datasets covering global postings, Indian job co
 ### 4. Curated India Scam Signatures
 - **File:** `india_job_scams.json`
 
+### 5. Kaggle — Internship Certificates (image dataset)
+- **Author / Link:** [godzilla04](https://www.kaggle.com/datasets/godzilla04/internship-certificates)
+- **Files:** 287 images (~104 MB) — 165 `Real internship certificate`, 122 `fake internship certificate`
+- **License:** CC0: Public Domain
+- **Scope:** Genuine vs. forged internship certificate scans, used to train the
+  certificate forgery CNN (`ml/notebooks/train_certificate_cnn.ipynb`).
+- **Measured caveat:** the two classes are not comparable in build quality. Real
+  certificates are median **1190x1683 / 278 KB** and portrait 87% of the time; fakes
+  are median **256x197 / 8 KB** and portrait only 19%. A logistic regression on
+  width/height/file size alone scores **ROC-AUC 0.966** — i.e. the label is readable
+  from the file metadata. The training notebook therefore rescales every image to a
+  common short side (384) *and* rotates landscape scans upright, which lowers that
+  baseline to **0.629**. Treat any score from this model as a weak, secondary signal.
+- **Handling:** images stay in `ml/data/raw/certificates/` (git-ignored); only the
+  stratified split index and `summary.json` are written to
+  `ml/data/processed/certificates/`. Prepare with:
+  `python -m ml.training.download_certificates`.
+
 ## Combined Statistics
 
 | Property | Value |

@@ -5,11 +5,10 @@ import { useAuth } from '../context/AuthContext';
 import {
   mockAnalysisHighRisk,
   mockAnalysisLowRisk,
-  mockAnalysisModerateRisk,
   mockAnalysisIndiaScam,
   mockAnalysisTelegramScam,
 } from '../data/mockData';
-import { submitAssessment, formatBackendResponse } from '../services/api';
+import { submitAssessment, submitAssessmentWithUpload, formatBackendResponse } from '../services/api';
 
 export const AnalyzePage = () => {
   const navigate = useNavigate();
@@ -83,9 +82,17 @@ export const AnalyzePage = () => {
     loadReport(mockAnalysisLowRisk);
   };
 
+  const MAX_FILE_BYTES = 10 * 1024 * 1024; // 10MB, matches the upload hint
+
   const handleFileChange = (e) => {
     const file = e.target.files?.[0];
     if (file) {
+      if (file.size > MAX_FILE_BYTES) {
+        setValidationError(
+          `"${file.name}" is ${(file.size / (1024 * 1024)).toFixed(1)} MB — the limit is 10 MB. Please export or scan the document smaller.`
+        );
+        return;
+      }
       setFileObject(file);
       setFileName(file.name);
       setValidationError('');
@@ -100,8 +107,9 @@ export const AnalyzePage = () => {
     const trimmedDesc = descInput.trim();
     const trimmedMsg = messageInput.trim();
 
-    // Check if at least one input across all tabs is provided
-    if (!trimmedUrl && !trimmedDesc && !trimmedMsg && !fileName && !recruiterEmail.trim()) {
+    // Check if at least one input across all tabs is provided.
+    // A real file object is required — a display name alone is not an upload.
+    if (!trimmedUrl && !trimmedDesc && !trimmedMsg && !fileObject && !recruiterEmail.trim()) {
       setValidationError('Please provide a Job URL, Description text, Email/Message, or upload a Document.');
       return;
     }
@@ -109,16 +117,34 @@ export const AnalyzePage = () => {
     setIsSubmitting(true);
 
     try {
-      // 1. Live API submission to FastAPI backend (all provided fields submitted together)
-      const apiResult = await submitAssessment({
-        url: trimmedUrl || undefined,
-        description: trimmedDesc || undefined,
-        company_name: companyName.trim() || undefined,
-        recruiter_email: recruiterEmail.trim() || undefined,
-        recruiter_name: recruiterName.trim() || undefined,
-        recruiter_phone: recruiterPhone.trim() || undefined,
-        message: trimmedMsg || undefined,
-      });
+      // 1. Live API submission to FastAPI backend (all provided fields submitted together).
+      // When a file is present the multipart endpoint is used so the document
+      // actually reaches the analysis pipeline.
+      let apiResult;
+      if (fileObject) {
+        const formData = new FormData();
+        formData.append('document', fileObject);
+        if (trimmedUrl) formData.append('url', trimmedUrl);
+        if (trimmedDesc) formData.append('description', trimmedDesc);
+        if (companyName.trim()) formData.append('company_name', companyName.trim());
+        if (recruiterEmail.trim()) formData.append('recruiter_email', recruiterEmail.trim());
+        if (recruiterName.trim()) formData.append('recruiter_name', recruiterName.trim());
+        if (recruiterPhone.trim()) formData.append('recruiter_phone', recruiterPhone.trim());
+        if (trimmedMsg) formData.append('message', trimmedMsg);
+        formData.append('consent_for_external_lookups', 'true');
+
+        apiResult = await submitAssessmentWithUpload(formData);
+      } else {
+        apiResult = await submitAssessment({
+          url: trimmedUrl || undefined,
+          description: trimmedDesc || undefined,
+          company_name: companyName.trim() || undefined,
+          recruiter_email: recruiterEmail.trim() || undefined,
+          recruiter_name: recruiterName.trim() || undefined,
+          recruiter_phone: recruiterPhone.trim() || undefined,
+          message: trimmedMsg || undefined,
+        });
+      }
 
       const formatted = formatBackendResponse(apiResult, {
         url: trimmedUrl,
@@ -129,24 +155,17 @@ export const AnalyzePage = () => {
       });
 
       loadReport(formatted);
+      navigate('/analyze/processing');
     } catch (err) {
-      console.warn('Backend live API offline/error, falling back to local evaluation:', err);
-      // Fallback matching
-      const combined = (trimmedUrl + ' ' + trimmedDesc + ' ' + trimmedMsg).toLowerCase();
-      if (combined.includes('stripe')) {
-        loadReport(mockAnalysisLowRisk);
-      } else if (combined.includes('excel') || combined.includes('deposit') || combined.includes('₹5,000') || combined.includes('5000')) {
-        loadReport(mockAnalysisIndiaScam);
-      } else if (combined.includes('crypto') || combined.includes('telegram') || combined.includes('task')) {
-        loadReport(mockAnalysisTelegramScam);
-      } else if (combined.includes('vanguard')) {
-        loadReport(mockAnalysisModerateRisk);
-      } else {
-        loadReport(mockAnalysisHighRisk);
-      }
+      // Honest failure: report what went wrong instead of fabricating a verdict.
+      console.error('Assessment submission failed:', err);
+      const detail = err?.message || 'Unknown error';
+      setValidationError(
+        `Analysis unavailable — no report was generated. ${detail}. ` +
+        'If the backend is not running, start it (see COMMANDS.md); no mock result will be shown.'
+      );
     } finally {
       setIsSubmitting(false);
-      navigate('/analyze/processing');
     }
   };
 
@@ -332,19 +351,6 @@ export const AnalyzePage = () => {
                   </p>
                   <p className="text-xs text-ink-subtle mt-1">Supports PDF, DOCX (Max 10MB)</p>
                 </div>
-                {!fileName && (
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.preventDefault();
-                      setFileName('Sample_Job_Offer_Letter.pdf');
-                      setValidationError('');
-                    }}
-                    className="px-4 py-1.5 rounded-full bg-surface border border-ink/10 text-xs font-semibold text-ink-muted hover:text-ink"
-                  >
-                    Simulate Selecting File
-                  </button>
-                )}
               </label>
             </div>
           )}

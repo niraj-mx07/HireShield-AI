@@ -24,12 +24,26 @@ pytest-asyncio==0.23.7
 # --- ML Inference ---
 scikit-learn==1.5.0
 joblib==1.4.2
+numpy>=1.24,<3.0
+
+# --- Certificate Forgery Vision Model (backend/app/services/certificate_forensics.py) ---
+# The fine-tuned MobileNetV3-Small is served as ONNX, so PyTorch is never needed
+# at runtime (~15 MB here vs ~800 MB for torch + torchvision).
+onnxruntime>=1.18,<2
+Pillow>=10.4,<13
+
+# Optional: renders the first page of an uploaded PDF so the forgery model can
+# score scanned certificates.  Without it, PDFs still get the text-based checks
+# and the vision step degrades gracefully.
+pypdfium2>=4.30
 
 # --- Web Page Retrieval & Parsing (backend/app/services/web_retrieval.py) ---
 beautifulsoup4==4.15.0
 
 # --- Document Text Extraction (backend/app/analyzers/document_analysis.py) ---
 pypdf==6.19.0
+pypdfium2>=4.30
+python-docx>=1.1.0  # for .docx upload text extraction
 
 # --- Optional NLP entity extraction ---
 # The heavy NER providers (spaCy / Hugging Face Transformers) are optional and
