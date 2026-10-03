@@ -23,6 +23,7 @@ from __future__ import annotations
 from typing import Dict, List
 
 from app.models.schemas import (
+    CRITICAL_INFRA_FAILURE_SOURCE,
     CategoryResult,
     CategoryScore,
     Recommendation,
@@ -61,8 +62,23 @@ def _risk_band(score: float) -> RiskBand:
     return RiskBand.VERY_HIGH
 
 
-def _recommendation(band: RiskBand, confidence: float, max_severity: str | None = None) -> Recommendation:
-    """Derive a recommendation from risk band, confidence, and severity."""
+def _recommendation(
+    band: RiskBand,
+    confidence: float,
+    max_severity: str | None = None,
+    critical_failure: bool = False,
+) -> Recommendation:
+    """Derive a recommendation from risk band, confidence, and severity.
+
+    ``critical_failure`` marks a positively confirmed absolute failure (e.g. a
+    domain with zero MX records, which can neither send nor receive mail).
+    Such a failure overrides every other consideration and is never softened
+    into a HOLD.
+    """
+    # An absolute infrastructure failure is disqualifying on its own.
+    if critical_failure:
+        return Recommendation.DONT_APPLY
+
     # Critical high-severity scam indicators always warrant DONT_APPLY
     if band in (RiskBand.HIGH, RiskBand.VERY_HIGH) or max_severity == "high":
         return Recommendation.DONT_APPLY
@@ -151,8 +167,23 @@ def score_assessment(
     if has_high_severity and risk_score < 65.0:
         risk_score = 65.0
 
+    # Rule: an absolute infrastructure failure (e.g. a domain confirmed to have
+    # zero MX records) is disqualifying.  It raises the floor to the high-risk
+    # band and forces DON'T APPLY rather than letting low confidence or a low
+    # weighted score soften the verdict into HOLD.
+    critical_failure = any(
+        rf.source == CRITICAL_INFRA_FAILURE_SOURCE for rf in all_risk_factors
+    )
+    if critical_failure and risk_score < 65.0:
+        risk_score = 65.0
+
     confidence = compute_confidence(results)
     band = _risk_band(risk_score)
-    rec = _recommendation(band, confidence, max_severity="high" if has_high_severity else None)
+    rec = _recommendation(
+        band,
+        confidence,
+        max_severity="high" if has_high_severity else None,
+        critical_failure=critical_failure,
+    )
 
     return risk_score, band, rec, confidence, category_scores, all_risk_factors
