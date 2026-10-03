@@ -1,11 +1,20 @@
 """Job Content Analysis — category weight 20 %.
 
-Evaluates job-posting text using a trained machine learning text classifier
-(TF-IDF + Logistic Regression trained on validated job posting datasets).
+Classifies job-posting text for scam indicators using behavioural signals
+rather than brand vocabulary, backed by a trained machine learning text
+classifier (TF-IDF + Logistic Regression).
 
-Flags linguistic patterns, urgency, and anomalies characteristic of
-fraudulent listings, mapping predicted probabilities into risk indicators
-and confidence scores without asserting fraud as fact.
+Classification policy (see :mod:`app.services.job_content_signals`):
+
+* **Legal nouns and geographic indicators are neutral** — ``Pvt``, ``Ltd``,
+  ``Inc``, ``Corp`` and ``India`` never contribute to the score.
+* **Brand names are neutral** — mentioning ``Tata``, ``TCS``, ``Google`` or
+  ``Amazon`` cannot raise risk on its own ("brand poisoning" defence).
+* **Risk escalates only on explicit deceptive mechanics** — advance-fee
+  demands, fake-check equipment loops, chat-only hiring channels, and grossly
+  inflated compensation benchmarks.
+* **Contextual override** — a standard corporate hiring structure combined with
+  an explicit "no fee is charged" statement defaults the score to SAFE (<15).
 """
 
 from __future__ import annotations
@@ -18,9 +27,16 @@ from app.models.schemas import (
     RiskFactor,
     Severity,
 )
+from app.services import job_content_signals
 from app.services.model_loader import get_job_content_model
 
 logger = logging.getLogger(__name__)
+
+# Behavioural-signal scoring policy (see app/services/job_content_signals.py).
+_BEHAVIORAL_HIGH_WEIGHT = 45.0    # each explicit high-severity mechanic
+_BEHAVIORAL_MEDIUM_WEIGHT = 30.0  # each moderate mechanic
+_BEHAVIORAL_HIGH_FLOOR = 65.0     # any explicit high-severity mechanic -> high band
+_SAFE_OVERRIDE_CEILING = 12.0     # corporate process + explicit "no fee" -> SAFE (<15)
 
 
 async def analyze(
@@ -67,9 +83,12 @@ async def analyze(
         )
         return CategoryResult(score=0.0, risk_factors=[], analyzed=False)
 
-    # 3. Vectorise and predict fraud probability
+    # 3. Neutralise legal nouns, geographic indicators and brand names, then
+    #    vectorise and predict.  Masking happens BEFORE the vectoriser so those
+    #    tokens resolve to out-of-vocabulary n-grams (zero weight).
+    neutralized_text = job_content_signals.neutralize_text(combined_text)
     try:
-        features = vectorizer.transform([combined_text])
+        features = vectorizer.transform([neutralized_text])
         if hasattr(model, "predict_proba"):
             # Probabilities for [class 0 (legitimate), class 1 (fraudulent)]
             probabilities = model.predict_proba(features)[0]
@@ -78,8 +97,8 @@ async def analyze(
             pred = model.predict(features)[0]
             fraud_prob = 1.0 if pred == 1 else 0.0
 
-        # Normalise to 0–100 risk score
-        score = round(min(max(fraud_prob * 100.0, 0.0), 100.0), 2)
+        # Neutralised ML probability, normalised to 0–100.
+        ml_score = round(min(max(fraud_prob * 100.0, 0.0), 100.0), 2)
     except Exception as exc:
         logger.error("Error during job content model inference: %s", exc, exc_info=True)
         return CategoryResult(score=0.0, risk_factors=[], analyzed=False)
@@ -101,12 +120,84 @@ async def analyze(
     except Exception as e:
         logger.debug("Feature importance extraction skipped: %s", e)
 
-    # 5. Construct explainable risk indicators based on risk score & top features
-    risk_factors: list[RiskFactor] = []
-    phrases_snippet = f" (Key signals: {', '.join([repr(p) for p in detected_phrases])})" if detected_phrases else ""
+    # 5. Behavioural signals + contextual override
+    #    Risk escalates only on explicit deceptive mechanics.  Brand names and
+    #    legal / geographic nouns never carry weight on their own.
+    signals = job_content_signals.detect_behavioral_signals(combined_text)
+    high_signals = [s for s in signals if s.severity is Severity.HIGH]
+    medium_signals = [s for s in signals if s.severity is Severity.MEDIUM]
 
-    if score >= 70.0:
+    corporate_structure = job_content_signals.has_corporate_structure(combined_text)
+    explicit_no_fee = job_content_signals.has_explicit_no_fee(combined_text)
+    safe_override = corporate_structure and explicit_no_fee and not high_signals
+
+    behavioral_score = min(
+        100.0,
+        _BEHAVIORAL_HIGH_WEIGHT * len(high_signals)
+        + _BEHAVIORAL_MEDIUM_WEIGHT * len(medium_signals),
+    )
+
+    phrases_snippet = (
+        f" (Key signals: {', '.join(repr(p) for p in detected_phrases)})"
+        if detected_phrases
+        else ""
+    )
+
+    risk_factors: list[RiskFactor] = []
+
+    if safe_override:
+        # Contextual override: standard corporate process + explicit no-fee.
+        score = round(min(ml_score, _SAFE_OVERRIDE_CEILING), 2)
         risk_factors.append(
+            RiskFactor(
+                category=RiskCategory.JOB_CONTENT,
+                severity=Severity.LOW,
+                description=(
+                    "Standard corporate hiring process with an explicit statement that "
+                    "no recruitment fee is charged at any stage."
+                ),
+                evidence=(
+                    "Structured hiring indicators (interview rounds, assessments, "
+                    "background checks) are present and the listing states that no fee "
+                    "is charged to applicants."
+                ),
+                source="contextual_no_fee_override",
+                confidence=0.9,
+            )
+        )
+    elif high_signals:
+        # Explicit fraudulent mechanics always escalate the score.
+        score = round(max(ml_score, behavioral_score, _BEHAVIORAL_HIGH_FLOOR), 2)
+        risk_factors.extend(_signal_to_factor(s) for s in signals)
+    elif medium_signals:
+        score = round(max(ml_score, behavioral_score), 2)
+        risk_factors.extend(_signal_to_factor(s) for s in medium_signals)
+    else:
+        # No explicit mechanics detected: fall back to the neutralised ML score.
+        score = ml_score
+        risk_factors.extend(_ml_risk_factors(score, fraud_prob, phrases_snippet))
+
+    return CategoryResult(score=score, risk_factors=risk_factors, analyzed=True)
+
+
+def _signal_to_factor(signal: job_content_signals.BehavioralSignal) -> RiskFactor:
+    """Map a behavioural signal onto the public risk-factor schema."""
+    return RiskFactor(
+        category=RiskCategory.JOB_CONTENT,
+        severity=signal.severity,
+        description=signal.description,
+        evidence=signal.evidence,
+        source=signal.source,
+        confidence=signal.confidence,
+    )
+
+
+def _ml_risk_factors(
+    score: float, fraud_prob: float, phrases_snippet: str
+) -> list[RiskFactor]:
+    """Explainable fallback indicators derived from the neutralised ML score."""
+    if score >= 70.0:
+        return [
             RiskFactor(
                 category=RiskCategory.JOB_CONTENT,
                 severity=Severity.HIGH,
@@ -121,9 +212,9 @@ async def analyze(
                 source="ml_job_content_classifier",
                 confidence=round(fraud_prob, 2),
             )
-        )
-    elif score >= 35.0:
-        risk_factors.append(
+        ]
+    if score >= 35.0:
+        return [
             RiskFactor(
                 category=RiskCategory.JOB_CONTENT,
                 severity=Severity.MEDIUM,
@@ -138,9 +229,9 @@ async def analyze(
                 source="ml_job_content_classifier",
                 confidence=round(fraud_prob, 2),
             )
-        )
-    elif score >= 20.0:
-        risk_factors.append(
+        ]
+    if score >= 20.0:
+        return [
             RiskFactor(
                 category=RiskCategory.JOB_CONTENT,
                 severity=Severity.LOW,
@@ -155,6 +246,5 @@ async def analyze(
                 source="ml_job_content_classifier",
                 confidence=round(1.0 - fraud_prob, 2),
             )
-        )
-
-    return CategoryResult(score=score, risk_factors=risk_factors, analyzed=True)
+        ]
+    return []

@@ -6,10 +6,16 @@ Flags free-webmail recruiters claiming enterprise affiliation and unsolicited ch
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import re
+from dataclasses import dataclass
+from enum import Enum
+
+import httpx
 
 from app.models.schemas import (
+    CRITICAL_INFRA_FAILURE_SOURCE,
     CategoryResult,
     RiskCategory,
     RiskFactor,
@@ -17,8 +23,6 @@ from app.models.schemas import (
 )
 
 logger = logging.getLogger(__name__)
-
-import httpx
 
 # Common free webmail providers
 FREE_EMAIL_DOMAINS = {
@@ -36,19 +40,133 @@ KNOWN_ENTERPRISES = {
 }
 
 
-async def _check_domain_mx(domain: str) -> list[str]:
-    """Query Cloudflare DNS-over-HTTPS for DNS MX mail exchanger records."""
+# Globally recognized enterprise mail domains (Fortune-500 / large caps).
+# These provably route mail, so a *failed* lookup against one of them must
+# never be reported as "no MX records" — it means our resolver timed out.
+VERIFIED_ENTERPRISE_DOMAINS: frozenset[str] = frozenset({
+    "tcs.com", "infosys.com", "wipro.com", "cognizant.com", "hcl.com",
+    "hcltech.com", "techmahindra.com", "accenture.com", "capgemini.com",
+    "deloitte.com", "kpmg.com", "pwc.com", "ey.com", "google.com",
+    "microsoft.com", "amazon.com", "apple.com", "meta.com", "ibm.com",
+    "oracle.com", "salesforce.com", "adobe.com", "flipkart.com",
+    "linkedin.com", "reliancejio.com",
+})
+
+# --- DNS MX lookup tuning -------------------------------------------------
+# Enterprise DNS is slow and often cached behind flaky resolvers, so a single
+# timed-out query must be retried rather than mistaken for a dead domain.
+_MX_ATTEMPTS = 3                # strict retry count for one domain
+_MX_TIMEOUT_SECONDS = 2.5       # per-attempt timeout
+_MX_BACKOFF_SECONDS = 0.25      # linear backoff between attempts
+
+# --- Recruiter Verification score behaviour -------------------------------
+_MX_FAILURE_BONUS = 55.0
+_MX_FAILURE_SCORE_FLOOR = 65.0  # a failed MX check lands in the FAIL band
+_MX_INDETERMINATE_PENALTY = 10.0
+
+
+class MxLookupStatus(str, Enum):
+    """Outcome of an MX lookup.
+
+    ``NO_RECORDS`` means the resolver *authoritatively* answered that no mail
+    exchanger exists.  ``INDETERMINATE`` means we could not find out.  The two
+    must never be conflated: only the former proves a mail-infrastructure
+    failure, the latter only justifies a re-scan.
+    """
+
+    FOUND = "found"
+    NO_RECORDS = "no_records"
+    INDETERMINATE = "indeterminate"
+
+
+@dataclass(frozen=True)
+class MxLookupResult:
+    """Structured MX lookup outcome."""
+
+    status: MxLookupStatus
+    records: tuple[str, ...] = ()
+    attempts: int = 0
+    detail: str = ""
+
+
+def is_verified_enterprise_domain(domain: str) -> bool:
+    """True when *domain* belongs to a globally recognized enterprise."""
+    normalized = (domain or "").strip().lower().rstrip(".")
+    if not normalized:
+        return False
+    return any(
+        normalized == apex or normalized.endswith(f".{apex}")
+        for apex in VERIFIED_ENTERPRISE_DOMAINS
+    )
+
+
+async def _fetch_dns_json(domain: str) -> dict:
+    """Perform a single DNS-over-HTTPS MX query.
+
+    Raises on any transport or HTTP-level failure so the retry loop can tell a
+    network problem apart from an authoritative "no records" answer.
+    """
     url = f"https://cloudflare-dns.com/dns-query?name={domain}&type=MX"
-    try:
-        async with httpx.AsyncClient(timeout=2.5) as client:
-            resp = await client.get(url, headers={"accept": "application/dns-json"})
-            if resp.status_code == 200:
-                data = resp.json()
-                answers = data.get("Answer", [])
-                return [ans.get("data", "") for ans in answers if ans.get("data")]
-    except Exception as exc:
-        logger.debug("DNS MX lookup skipped or failed for %s: %s", domain, exc)
-    return []
+    async with httpx.AsyncClient(timeout=_MX_TIMEOUT_SECONDS) as client:
+        resp = await client.get(url, headers={"accept": "application/dns-json"})
+        resp.raise_for_status()
+        return resp.json()
+
+
+async def _check_domain_mx(domain: str) -> MxLookupResult:
+    """Resolve MX records with a strict retry mechanism.
+
+    Timeouts, connect errors, HTTP failures and SERVFAIL/REFUSED answers are
+    retried, then reported as :class:`MxLookupStatus.INDETERMINATE` — never as
+    ``NO_RECORDS``.  Only an authoritative answer with zero MX records is
+    reported as ``NO_RECORDS``.
+    """
+    if not (domain or "").strip():
+        return MxLookupResult(MxLookupStatus.INDETERMINATE, detail="no domain supplied")
+
+    last_detail = ""
+    for attempt in range(1, _MX_ATTEMPTS + 1):
+        try:
+            data = await _fetch_dns_json(domain)
+        except Exception as exc:  # noqa: BLE001 - any transport/HTTP failure
+            last_detail = f"{type(exc).__name__}: {exc}"
+            logger.debug(
+                "DNS MX attempt %d/%d failed for %s: %s", attempt, _MX_ATTEMPTS, domain, exc
+            )
+            if attempt < _MX_ATTEMPTS:
+                await asyncio.sleep(_MX_BACKOFF_SECONDS * attempt)
+            continue
+
+        status_code = data.get("Status", 0)
+        if status_code in (2, 5):  # SERVFAIL / REFUSED -> resolver trouble
+            last_detail = f"resolver returned rcode {status_code}"
+            if attempt < _MX_ATTEMPTS:
+                await asyncio.sleep(_MX_BACKOFF_SECONDS * attempt)
+            continue
+
+        # Only type 15 answers count as mail exchangers; a CNAME (type 5) or
+        # other record returned alongside the answer is not an MX record.
+        answers = data.get("Answer") or []
+        mx_records = tuple(
+            str(ans.get("data", "")).strip()
+            for ans in answers
+            if ans.get("type") == 15 and ans.get("data")
+        )
+        if mx_records:
+            return MxLookupResult(MxLookupStatus.FOUND, mx_records, attempt)
+
+        if status_code == 3:  # NXDOMAIN: the domain itself does not exist
+            return MxLookupResult(
+                MxLookupStatus.NO_RECORDS, (), attempt, "authoritative NXDOMAIN"
+            )
+        # Authoritative NOERROR answer carrying zero MX records.
+        return MxLookupResult(
+            MxLookupStatus.NO_RECORDS, (), attempt, "authoritative answer, 0 MX records"
+        )
+
+    return MxLookupResult(
+        MxLookupStatus.INDETERMINATE, (), _MX_ATTEMPTS, last_detail or "lookup failed"
+    )
 
 
 
@@ -76,6 +194,8 @@ async def analyze(
 
     risk_factors: list[RiskFactor] = []
     base_score = 0.0
+    # Set only when the critical MX check is *confirmed* to have failed.
+    mx_failed = False
 
     email_domain = ""
     if has_email:
@@ -133,35 +253,62 @@ async def analyze(
                     )
                 )
 
-        # Check live DNS MX records for corporate email domains (when consent granted)
+        # Live DNS MX check for corporate email domains (only with consent).
         if consent:
-            mx_records = await _check_domain_mx(email_domain)
-            if not mx_records:
-                base_score += 55.0
+            mx = await _check_domain_mx(email_domain)
+            if mx.status is MxLookupStatus.FOUND:
+                if not any(rf.severity == Severity.HIGH for rf in risk_factors):
+                    top_mx = mx.records[0].split()[-1]
+                    risk_factors.append(
+                        RiskFactor(
+                            category=RiskCategory.RECRUITER_VERIFICATION,
+                            severity=Severity.LOW,
+                            description="Recruiter email domain has operational mail exchangers.",
+                            evidence=f"DNS MX record confirmed active mail routing server: '{top_mx}'.",
+                            source="dns_mx_verifier",
+                            confidence=0.88,
+                        )
+                    )
+            elif mx.status is MxLookupStatus.INDETERMINATE:
+                # Rule 2 — a failed lookup is NOT evidence of missing mail
+                # routing.  Enterprise domains get the explicit re-scan flag.
+                enterprise = is_verified_enterprise_domain(email_domain)
+                base_score += _MX_INDETERMINATE_PENALTY
+                risk_factors.append(
+                    RiskFactor(
+                        category=RiskCategory.RECRUITER_VERIFICATION,
+                        severity=Severity.MEDIUM if enterprise else Severity.LOW,
+                        description=(
+                            "Network Timeout / Re-scan Required"
+                            if enterprise
+                            else "DNS MX lookup inconclusive — re-scan required"
+                        ),
+                        evidence=(
+                            f"MX lookup for '{email_domain}' did not complete after "
+                            f"{mx.attempts} attempts ({mx.detail}). No conclusion is drawn about "
+                            "this domain's mail routing; a re-scan is required before any "
+                            "verification status is assigned."
+                        ),
+                        source="dns_mx_verifier",
+                        confidence=0.40,
+                    )
+                )
+            else:
+                # Rule 3 — positively confirmed: zero MX records.
+                mx_failed = True
+                base_score = max(base_score + _MX_FAILURE_BONUS, _MX_FAILURE_SCORE_FLOOR)
                 risk_factors.append(
                     RiskFactor(
                         category=RiskCategory.RECRUITER_VERIFICATION,
                         severity=Severity.HIGH,
                         description="Recruiter email domain has no DNS MX mail exchangers.",
                         evidence=(
-                            f"Domain '{email_domain}' has no active DNS MX mail routing records. "
-                            "It cannot receive or send authentic enterprise mail and is likely a disposable "
-                            "or spoofed domain."
+                            f"Confirmed: domain '{email_domain}' authoritatively returned no active "
+                            "DNS MX mail routing records. The mailbox can neither send nor receive "
+                            "authentic enterprise mail — an absolute mail-infrastructure failure."
                         ),
-                        source="dns_mx_verifier",
+                        source=CRITICAL_INFRA_FAILURE_SOURCE,
                         confidence=0.95,
-                    )
-                )
-            elif not any(rf.severity == Severity.HIGH for rf in risk_factors):
-                top_mx = mx_records[0].split()[-1]
-                risk_factors.append(
-                    RiskFactor(
-                        category=RiskCategory.RECRUITER_VERIFICATION,
-                        severity=Severity.LOW,
-                        description="Recruiter email domain has operational mail exchangers.",
-                        evidence=f"DNS MX record confirmed active mail routing server: '{top_mx}'.",
-                        source="dns_mx_verifier",
-                        confidence=0.88,
                     )
                 )
 
@@ -196,6 +343,13 @@ async def analyze(
                 confidence=0.80,
             )
         )
+
+    # Rule 1 — a failed critical MX check pivots the entire Recruiter
+    # Verification section to FAIL.  Positive "verified" evidence lines are
+    # dropped so the section can never read as both verified-safe and high risk.
+    if mx_failed:
+        risk_factors = [rf for rf in risk_factors if rf.severity != Severity.LOW]
+        base_score = max(base_score, _MX_FAILURE_SCORE_FLOOR)
 
     final_score = round(min(max(base_score, 0.0), 100.0), 2)
     return CategoryResult(score=final_score, risk_factors=risk_factors, analyzed=True)

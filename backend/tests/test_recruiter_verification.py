@@ -52,7 +52,11 @@ async def test_no_recruiter_info_unanalyzed():
 async def test_dns_mx_missing_flagged(monkeypatch):
     """Test corporate email domain with no DNS MX records is flagged as high risk."""
     async def mock_mx(domain):
-        return []
+        return recruiter_verification.MxLookupResult(
+            recruiter_verification.MxLookupStatus.NO_RECORDS,
+            attempts=1,
+            detail="authoritative answer, 0 MX records",
+        )
 
     monkeypatch.setattr(recruiter_verification, "_check_domain_mx", mock_mx)
 

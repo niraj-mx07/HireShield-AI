@@ -94,6 +94,14 @@ class AssessmentRequest(BaseModel):
 # Intermediate / analysis result schemas
 # ---------------------------------------------------------------------------
 
+# Sentinel ``RiskFactor.source`` value marking an absolute, positively confirmed
+# infrastructure failure — e.g. a recruiter domain that authoritatively returned
+# zero MX records and therefore cannot send or receive mail at all.  The risk
+# engine treats this as disqualifying and forces DON'T APPLY; it must never be
+# softened into a HOLD.
+CRITICAL_INFRA_FAILURE_SOURCE = "critical_infrastructure_failure"
+
+
 class RiskFactor(BaseModel):
     """A single risk indicator surfaced by an analyzer."""
     category: RiskCategory
