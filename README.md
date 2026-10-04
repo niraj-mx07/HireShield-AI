@@ -111,6 +111,8 @@ Uploaded documents are additionally mined for fields the user left blank (`app/s
 
 HireShield-AI uses a hybrid detector: ML prediction, deterministic rules, URL analysis, company/recruiter verification, document analysis, and cross-source information consistency are combined in a single Risk Engine. Model output is one signal among several; it does not override high-severity evidence such as advance-payment demands or a verified domain mismatch.
 
+Job-content classification is driven by **behaviour only, never by vocabulary**. Legal suffixes (`Pvt`, `Ltd`, `Inc`, `Corp`), geographic indicators (`India`) and enterprise brands (`Tata`, `TCS`, `Google`, `Amazon`, …) are masked before the text model runs, so they can never act as risk weights. Risk escalates only on explicit deceptive mechanics — advance-fee demands, fake-check equipment loops, chat-only (Telegram/WhatsApp) hiring, inflated pay — while a listing documenting standard corporate hiring structure together with an explicit "no recruitment fee" statement is overridden to the safe band.
+
 | Category | Weight | Example signals |
 | --- | ---: | --- |
 | Job Content Analysis | 20% | Vague role scope, unrealistic salary, missing employer details |

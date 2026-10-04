@@ -31,12 +31,14 @@ from app.models.schemas import (
     AssessmentResponse,
     AssessmentStatus,
     CategoryResult,
+    CHAT_REDIRECT_GATE_SOURCE,
     ExtractedEntity,
     RiskCategory,
     RiskFactor,
     Severity,
+    normalize_text_payloads,
 )
-from app.services import document_mining, nlp_entities, web_retrieval
+from app.services import document_mining, message_threats, nlp_entities, web_retrieval
 from app.services.risk_engine import score_assessment
 from app.utils.privacy import build_input_summary, redact_pii
 
@@ -60,6 +62,20 @@ async def run_assessment(
     """
     assessment_id = uuid.uuid4().hex
     consent = request.consent_for_external_lookups
+
+    # ------------------------------------------------------------------
+    # 0. Fold alias text payloads into the analyzers' primary variables
+    # ------------------------------------------------------------------
+    # ``chat_transcript`` / ``message_log`` are accepted input keys; when the
+    # canonical field is empty they become the payload the text engine analyses.
+    # This runs before document mining so a user-pasted transcript is never
+    # overridden by a document-derived description.
+    folded_aliases = normalize_text_payloads(request)
+    if folded_aliases:
+        logger.info(
+            "Assessment %s — alias input(s) folded into primary payloads: %s",
+            assessment_id, ", ".join(folded_aliases),
+        )
 
     # ------------------------------------------------------------------
     # Extract document text and mine inputs the user left blank
@@ -90,6 +106,8 @@ async def run_assessment(
             recruiter_name=request.recruiter_name,
             recruiter_phone=request.recruiter_phone,
             message=request.message,
+            chat_transcript=request.chat_transcript,
+            message_log=request.message_log,
             has_document=document_bytes is not None,
         ))),
     )
@@ -106,6 +124,8 @@ async def run_assessment(
         recruiter_name=request.recruiter_name,
         recruiter_phone=request.recruiter_phone,
         message=request.message,
+        chat_transcript=request.chat_transcript,
+        message_log=request.message_log,
         has_document=document_bytes is not None,
     )
     record = AssessmentRecord(id=assessment_id, input_summary=input_summary)
@@ -161,6 +181,8 @@ async def run_assessment(
         description=request.description,
         message=request.message,
         document_text=extracted_doc_text,
+        chat_transcript=request.chat_transcript,
+        message_log=request.message_log,
     )
     results[RiskCategory.DOCUMENT_ANALYSIS] = await document_analysis.analyze(
         document_bytes=document_bytes,
@@ -215,7 +237,59 @@ async def run_assessment(
 
 
     # ------------------------------------------------------------------
-    # 2c. Named-entity extraction (structured identifiers + NLP NER)
+    # 2c. Message & Transcript Analysis Engine — zero-tolerance
+    #     chat-redirection gate (Rules 1 & 3)
+    # ------------------------------------------------------------------
+    # Every conversational payload field is scanned together so a transcript
+    # pasted under any key still reaches the gate.  A hit emits the
+    # CHAT_REDIRECT_GATE_SOURCE sentinel, which floors the overall score at
+    # 92+ and forces DON'T APPLY in the risk engine.  Legitimate Microsoft
+    # Teams / Zoom / Webex interviews with a corporate invitation domain
+    # bypass the gate entirely.
+    try:
+        transcript_payload = "\n".join(
+            part.strip()
+            for part in (
+                request.description,
+                request.message,
+                request.chat_transcript,
+                request.message_log,
+            )
+            if part and part.strip()
+        )
+        redirection_hit = message_threats.detect_chat_redirection(transcript_payload)
+        if redirection_hit is not None:
+            recruiter_result = results[RiskCategory.RECRUITER_VERIFICATION]
+            recruiter_result.risk_factors.append(
+                RiskFactor(
+                    category=RiskCategory.RECRUITER_VERIFICATION,
+                    severity=Severity.HIGH,
+                    description=(
+                        "Hiring communication redirected to a personal or anonymous "
+                        "chat network."
+                    ),
+                    evidence=(
+                        f"Platform '{redirection_hit.platform}' referenced as the channel "
+                        f"for an interview or onboarding briefing. Evidence: "
+                        f"{redirection_hit.evidence} Legitimate employers conduct "
+                        "hiring over official corporate channels."
+                    ),
+                    source=CHAT_REDIRECT_GATE_SOURCE,
+                    confidence=0.97,
+                )
+            )
+            recruiter_result.score = max(recruiter_result.score, 92.0)
+            recruiter_result.analyzed = True
+            logger.info(
+                "Assessment %s — chat-redirection gate raised (platform=%s)",
+                assessment_id, redirection_hit.platform,
+            )
+    except Exception as exc:
+        logger.warning("Chat-redirection gate error: %s", exc)
+
+
+    # ------------------------------------------------------------------
+    # 2d. Named-entity extraction (structured identifiers + NLP NER)
     # ------------------------------------------------------------------
     entities: list[ExtractedEntity] = []
     try:
@@ -261,13 +335,29 @@ async def run_assessment(
     if request.url and request.url.strip():
         active_inputs.append("Job URL")
     if request.description and request.description.strip():
-        active_inputs.append("Job Description")
+        # A body that arrived via ``chat_transcript`` is reported under its
+        # real name rather than being mislabelled as a job description.
+        active_inputs.append(
+            "Chat Transcript" if "chat_transcript" in folded_aliases else "Job Description"
+        )
+    if (
+        request.chat_transcript
+        and request.chat_transcript.strip()
+        and "chat_transcript" not in folded_aliases
+    ):
+        active_inputs.append("Chat Transcript")
     if request.company_name and request.company_name.strip():
         active_inputs.append("Company Name")
     if (request.recruiter_email and request.recruiter_email.strip()) or (request.recruiter_name and request.recruiter_name.strip()) or (request.recruiter_phone and request.recruiter_phone.strip()):
         active_inputs.append("Recruiter Details")
     if request.message and request.message.strip():
         active_inputs.append("Email / Message")
+    if (
+        request.message_log
+        and request.message_log.strip()
+        and "message_log" not in folded_aliases
+    ):
+        active_inputs.append("Message Log")
     if document_bytes:
         active_inputs.append(f"Document ({document_filename or 'Uploaded File'})")
 

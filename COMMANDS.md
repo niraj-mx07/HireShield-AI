@@ -16,7 +16,30 @@ A quick-reference guide for running, training, testing, and developing across th
 
 ## 1. Quick Start (Run Everything)
 
-To run the complete system locally, open two separate terminal windows:
+### Recommended: start both with one command
+
+```bash
+./scripts/dev.sh
+```
+
+This starts the backend and the Vite dev server together and **waits until both
+are actually answering** before it exits. It also stops whatever is already
+holding the two ports first, so it is safe to re-run at any time.
+
+```bash
+./scripts/dev.sh --status   # what is listening right now?
+./scripts/dev.sh --stop     # stop both
+```
+
+Logs land in `/tmp/hireshield-backend.log` and `/tmp/hireshield-frontend.log`.
+
+> **Why the script exists.** A `NetworkError` in the UI almost always means
+> *nothing is listening*, not a broken request. Both dev servers die when their
+> terminal or session ends, and it is easy to restart one and forget the other.
+> The script removes that failure mode and tells you which service is down
+> instead of showing a generic error.
+
+### Manual alternative: two separate terminal windows
 
 ### Terminal 1: Backend API
 ```powershell
@@ -154,6 +177,9 @@ pytest tests/test_risk_engine.py
 pytest tests/test_web_retrieval.py
 pytest tests/test_nlp_entities.py
 pytest tests/test_pipeline_entities.py
+
+# Negation scope: protective disclaimers must not score as fraud mechanics
+pytest tests/test_negation_scope.py
 ```
 
 ---
@@ -244,6 +270,26 @@ docker compose down
 ---
 
 ## 6. Troubleshooting & FAQs
+
+### `NetworkError` / "Analysis unavailable" in the web UI
+
+The frontend never shows a mock result on failure, so this message means the
+request genuinely did not complete. Check the two services first:
+
+```bash
+./scripts/dev.sh --status
+# backend  :8000  UP    {"status":"ok","service":"hireshield-ai"}
+# frontend :3000 DOWN
+```
+
+If the backend is `DOWN`, read `/tmp/hireshield-backend.log` — a model or
+dependency change requires a restart (§2, *Restart the Backend After Installing
+Dependencies or Swapping Models*). If only the frontend is down, restart it with
+`npm run dev` in `frontend/`.
+
+> The frontend calls the backend **directly** at `VITE_API_BASE_URL`
+> (`http://127.0.0.1:8000` by default) — there is no Vite proxy — so both must be
+> running and reachable from the browser.
 
 ### Port Conflict `[WinError 10013]` / Port 8000 in use
 If you get `An attempt was made to access a socket in a way forbidden by its access permissions`, another process is already listening on port 8000.

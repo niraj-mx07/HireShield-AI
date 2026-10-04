@@ -65,6 +65,8 @@ def build_input_summary(
     recruiter_name: str | None = None,
     recruiter_phone: str | None = None,
     message: str | None = None,
+    chat_transcript: str | None = None,
+    message_log: str | None = None,
     has_document: bool = False,
 ) -> dict:
     """Create a non-PII summary dict describing which inputs were provided.
@@ -85,6 +87,10 @@ def build_input_summary(
         "recruiter_phone_provided": recruiter_phone is not None,
         "message_provided": message is not None,
         "message_length": len(message) if message else 0,
+        "chat_transcript_provided": chat_transcript is not None,
+        "chat_transcript_length": len(chat_transcript) if chat_transcript else 0,
+        "message_log_provided": message_log is not None,
+        "message_log_length": len(message_log) if message_log else 0,
         "document_provided": has_document,
     }
 

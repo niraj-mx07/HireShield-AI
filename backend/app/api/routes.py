@@ -87,6 +87,8 @@ async def create_assessment_with_upload(
     recruiter_name: Optional[str] = Form(None),
     recruiter_phone: Optional[str] = Form(None),
     message: Optional[str] = Form(None),
+    chat_transcript: Optional[str] = Form(None),
+    message_log: Optional[str] = Form(None),
     consent_for_external_lookups: bool = Form(False),
 ) -> AssessmentResponse:
     """Create and run a new risk assessment with a document upload.
@@ -112,6 +114,8 @@ async def create_assessment_with_upload(
         recruiter_name=recruiter_name,
         recruiter_phone=recruiter_phone,
         message=message,
+        chat_transcript=chat_transcript,
+        message_log=message_log,
         consent_for_external_lookups=consent_for_external_lookups,
     )
 
@@ -310,18 +314,32 @@ async def get_recent_scams(limit: int = Query(10, ge=1, le=50)):
 
 
 def _validate_has_input(request: AssessmentRequest) -> None:
-    """Ensure at least one meaningful input field is provided."""
-    if not any([
-        request.url,
-        request.description,
-        request.company_name,
-        request.recruiter_email,
-        request.recruiter_name,
-    ]):
+    """Ensure at least one meaningful input field is provided.
+
+    ``message``, ``chat_transcript`` and ``message_log`` are first-class inputs
+    to the scanning endpoint: a submission that carries only an email/chat
+    payload must be analysed, not rejected with a 422.  Whitespace-only values
+    count as absent.
+    """
+    if not any(
+        (value or "").strip()
+        for value in (
+            request.url,
+            request.description,
+            request.company_name,
+            request.recruiter_email,
+            request.recruiter_name,
+            request.recruiter_phone,
+            request.message,
+            request.chat_transcript,
+            request.message_log,
+        )
+    ):
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail=(
                 "At least one input field (url, description, company_name, "
-                "recruiter_email, or recruiter_name) must be provided."
+                "recruiter_email, recruiter_name, recruiter_phone, message, "
+                "chat_transcript, or message_log) must be provided."
             ),
         )

@@ -23,6 +23,8 @@ from __future__ import annotations
 from typing import Dict, List
 
 from app.models.schemas import (
+    CHAT_REDIRECT_GATE_SCORE_FLOOR,
+    CHAT_REDIRECT_GATE_SOURCE,
     CRITICAL_INFRA_FAILURE_SOURCE,
     CategoryResult,
     CategoryScore,
@@ -67,6 +69,7 @@ def _recommendation(
     confidence: float,
     max_severity: str | None = None,
     critical_failure: bool = False,
+    hard_gate: bool = False,
 ) -> Recommendation:
     """Derive a recommendation from risk band, confidence, and severity.
 
@@ -74,9 +77,17 @@ def _recommendation(
     domain with zero MX records, which can neither send nor receive mail).
     Such a failure overrides every other consideration and is never softened
     into a HOLD.
+
+    ``hard_gate`` marks a zero-tolerance conversational violation (a chat-network
+    redirection of the hiring process).  It likewise forces DON'T APPLY and can
+    never be averaged down by the weighted score.
     """
     # An absolute infrastructure failure is disqualifying on its own.
     if critical_failure:
+        return Recommendation.DONT_APPLY
+
+    # Zero-tolerance chat redirection is likewise disqualifying on its own.
+    if hard_gate:
         return Recommendation.DONT_APPLY
 
     # Critical high-severity scam indicators always warrant DONT_APPLY
@@ -177,6 +188,16 @@ def score_assessment(
     if critical_failure and risk_score < 65.0:
         risk_score = 65.0
 
+    # Rule: a confirmed chat-network redirection of the hiring process is a
+    # zero-tolerance violation.  It raises the floor to 92+ and forces
+    # DON'T APPLY so the verdict can never be softened by low category scores
+    # or thin evidence coverage.
+    hard_gate = any(
+        rf.source == CHAT_REDIRECT_GATE_SOURCE for rf in all_risk_factors
+    )
+    if hard_gate and risk_score < CHAT_REDIRECT_GATE_SCORE_FLOOR:
+        risk_score = CHAT_REDIRECT_GATE_SCORE_FLOOR
+
     confidence = compute_confidence(results)
     band = _risk_band(risk_score)
     rec = _recommendation(
@@ -184,6 +205,7 @@ def score_assessment(
         confidence,
         max_severity="high" if has_high_severity else None,
         critical_failure=critical_failure,
+        hard_gate=hard_gate,
     )
 
     return risk_score, band, rec, confidence, category_scores, all_risk_factors
