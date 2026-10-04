@@ -27,6 +27,7 @@ import re
 from dataclasses import dataclass
 
 from app.models.schemas import Severity
+from app.services import negation_scope
 
 # ---------------------------------------------------------------------------
 # Neutralised vocabulary — legal suffixes, geographic indicators, brands
@@ -107,38 +108,23 @@ class BehavioralSignal:
 # Negation guard — "never charges any ... fee" is NOT an advance-fee demand
 # ---------------------------------------------------------------------------
 
-_SENTENCE_SPLIT_RE = re.compile(r"[.!?\n;]+")
-_NEGATION_RE = re.compile(
-    r"\b(?:no|not|never|without|zero|nil|free|neither|nor)\b", re.IGNORECASE
-)
-# A payment *action* between the negation and the fee noun re-asserts the
-# demand ("no hidden charges, just pay the registration fee").  Noun forms such
-# as "security deposit" are deliberately excluded: they appear inside the very
-# negated list ("never charges ... or security deposit") and must not unlock it.
-_PAYMENT_VERB_RE = re.compile(
-    r"\b(?:pay|pays|paid|paying|send|sends|sent|remit|remits|transfer|transferred|"
-    r"wire|submit|submits|top\s*up|recharge|recharges)\b",
-    re.IGNORECASE,
-)
+def _is_negated(text: str, match_start: int, match_end: int | None = None) -> bool:
+    """Return ``True`` when the clause containing the match *denies* it.
 
+    Delegates to :mod:`app.services.negation_scope`, which distinguishes an
+    active demand from a protective warning:
 
-def _is_negated(text: str, match_start: int) -> bool:
-    """Return ``True`` when the clause leading up to ``match_start`` negates it.
+    * ``"We will never ask you to pay a registration fee"`` — passive.  The
+      payment verb is the complement of the denial, not a fresh demand.
+    * ``"no hidden charges, just pay the registration fee"`` — active.  A weak
+      denial (``no``) is re-opened by the imperative that follows.
+    * ``"we never charge fees, BUT you must pay a deposit of Rs 5000"`` — active.
+      The clause is re-split at the contrastive connective.
 
-    Only the current sentence is inspected.  A negation cue that is separated
-    from the match by a payment verb does not count (the demand is still live).
+    ``match_start`` alone is enough for the sentence-finder, but passing
+    ``match_end`` also enables post-posed denials ("checks are never issued").
     """
-    sentence_start = 0
-    for boundary in _SENTENCE_SPLIT_RE.finditer(text[:match_start]):
-        sentence_start = boundary.end()
-
-    prefix = text[sentence_start:match_start]
-    cues = list(_NEGATION_RE.finditer(prefix))
-    if not cues:
-        return False
-
-    tail = prefix[cues[-1].end():]
-    return not _PAYMENT_VERB_RE.search(tail)
+    return negation_scope.is_passive_reference(text, match_start, match_end or match_start)
 
 
 # ---------------------------------------------------------------------------
@@ -330,7 +316,7 @@ def detect_behavioral_signals(text: str) -> list[BehavioralSignal]:
     fee_evidence = ""
     for pattern, label in _ADVANCE_FEE_PATTERNS:
         for m in re.finditer(pattern, text, re.IGNORECASE):
-            if _is_negated(text, m.start()):
+            if _is_negated(text, m.start(), m.end()):
                 continue
             if label not in fee_labels:
                 fee_labels.append(label)
@@ -359,7 +345,7 @@ def detect_behavioral_signals(text: str) -> list[BehavioralSignal]:
     check_evidence = ""
     for pattern, label in _CHECK_LOOP_PATTERNS:
         m = re.search(pattern, text, re.IGNORECASE)
-        if m and not _is_negated(text, m.start()):
+        if m and not _is_negated(text, m.start(), m.end()):
             if label not in check_labels:
                 check_labels.append(label)
                 if not check_evidence:
@@ -383,8 +369,11 @@ def detect_behavioral_signals(text: str) -> list[BehavioralSignal]:
         )
 
 
-    # 3) Unofficial communication channel for hiring
-    channel = _CHAT_CHANNEL_RE.search(text)
+    # 3) Unofficial communication channel for hiring.
+    #    "Infosys never conducts interviews over anonymous chat applications
+    #    such as WhatsApp" is an anti-fraud warning — the platform is named in a
+    #    denied clause, so it is not a channel redirection.
+    channel = negation_scope.first_active_match(text, _CHAT_CHANNEL_RE)
     if channel:
         strong = bool(_CHAT_STRONG_CONTEXT_RE.search(text))
         weak = bool(_CHAT_WEAK_CONTEXT_RE.search(text))

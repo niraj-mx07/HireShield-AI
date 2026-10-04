@@ -25,6 +25,8 @@ export async function submitAssessment(payload) {
       recruiter_name: payload.recruiter_name || undefined,
       recruiter_phone: payload.recruiter_phone || undefined,
       message: payload.message || undefined,
+      chat_transcript: payload.chat_transcript || undefined,
+      message_log: payload.message_log || undefined,
       consent_for_external_lookups: true,
     }),
   });
@@ -82,12 +84,18 @@ export function formatBackendResponse(apiData, userInputs = {}) {
   const matrix = (apiData.category_scores || []).map((cs) => {
     const isAnalyzed = cs.analyzed;
     const catScore = cs.score || 0;
+    const factors = cs.risk_factors || [];
+    const hasHigh = factors.some((f) => f.severity === 'high');
+    const hasMedium = factors.some((f) => f.severity === 'medium');
+
+    // Severity outranks the raw score so a section carrying a high-severity
+    // indicator can never render as PASS/CAUTION (single-section contradiction).
     let status = 'PASS';
     if (!isAnalyzed) {
       status = 'CAUTION';
-    } else if (catScore >= 60) {
+    } else if (hasHigh || catScore >= 60) {
       status = 'FAIL';
-    } else if (catScore >= 30) {
+    } else if (hasMedium || catScore >= 30) {
       status = 'CAUTION';
     }
 
@@ -96,13 +104,27 @@ export function formatBackendResponse(apiData, userInputs = {}) {
       .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
       .join(' ');
 
+    // The evidence footer must agree with the rendered status: a FAIL row
+    // never quotes a "verified" line, and a PASS row never quotes an alarm.
+    let footerFactor;
+    if (status === 'FAIL') {
+      footerFactor = factors.find((f) => f.severity === 'high') || factors[0];
+    } else if (status === 'CAUTION') {
+      footerFactor =
+        factors.find((f) => f.severity === 'medium') ||
+        factors.find((f) => f.severity !== 'high') ||
+        factors[0];
+    } else {
+      footerFactor = factors.find((f) => f.severity === 'low') || factors[0];
+    }
+
     return {
       checkName: `${nameFormatted} Check`,
       status,
       explanation: isAnalyzed
         ? `Score: ${catScore.toFixed(1)}/100 (Effective Weight: ${(cs.weight * 100).toFixed(1)}%)`
         : 'Not provided or unanalyzed in this scan',
-      evidenceFooter: cs.risk_factors && cs.risk_factors.length > 0 ? cs.risk_factors[0].evidence : 'Standard parameters verified',
+      evidenceFooter: footerFactor ? footerFactor.evidence : 'Standard parameters verified',
     };
   });
 

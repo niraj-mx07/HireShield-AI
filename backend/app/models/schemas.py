@@ -71,7 +71,8 @@ class AssessmentRequest(BaseModel):
     """Input payload for creating a new assessment.
 
     At least one of ``url``, ``description``, ``company_name``, ``recruiter_email``,
-    ``message``, or a document upload (handled via multipart) must be provided.
+    ``recruiter_name``, ``recruiter_phone``, ``message``, ``chat_transcript``,
+    ``message_log``, or a document upload (handled via multipart) must be provided.
     """
     url: Optional[str] = Field(None, description="Job/internship listing URL")
     description: Optional[str] = Field(None, description="Pasted job description text")
@@ -80,6 +81,14 @@ class AssessmentRequest(BaseModel):
     recruiter_name: Optional[str] = Field(None, description="Recruiter name")
     recruiter_phone: Optional[str] = Field(None, description="Recruiter phone number or WhatsApp handle")
     message: Optional[str] = Field(None, description="Recruiter email body, WhatsApp, or Telegram message")
+    chat_transcript: Optional[str] = Field(
+        None,
+        description="Pasted chat transcript (WhatsApp, Telegram, in-app chat)",
+    )
+    message_log: Optional[str] = Field(
+        None,
+        description="Pasted message log or email thread history",
+    )
     consent_for_external_lookups: bool = Field(
         False,
         description=(
@@ -88,6 +97,38 @@ class AssessmentRequest(BaseModel):
             "submitted content to third-party services."
         ),
     )
+
+
+def _has_text(value: Optional[str]) -> bool:
+    """True when *value* carries non-whitespace content."""
+    return bool(value and value.strip())
+
+
+def normalize_text_payloads(request: AssessmentRequest) -> list[str]:
+    """Fold the alias text fields into the pipeline's primary payload variables.
+
+    The analyzers consume two text payloads: :attr:`AssessmentRequest.description`
+    (the job/content body) and :attr:`AssessmentRequest.message` (the recruiter
+    correspondence).  Callers may instead submit ``chat_transcript`` or
+    ``message_log``.  When an alias is supplied and its canonical field is
+    empty, the alias is copied across so the text processing engine analyses it
+    instead of silently dropping it.  A canonical value the caller actually
+    typed is never overwritten.
+
+    Returns:
+        The alias names that were folded in, e.g. ``["chat_transcript"]``.
+    """
+    folded: list[str] = []
+
+    if not _has_text(request.description) and _has_text(request.chat_transcript):
+        request.description = request.chat_transcript.strip()
+        folded.append("chat_transcript")
+
+    if not _has_text(request.message) and _has_text(request.message_log):
+        request.message = request.message_log.strip()
+        folded.append("message_log")
+
+    return folded
 
 
 # ---------------------------------------------------------------------------
@@ -100,6 +141,18 @@ class AssessmentRequest(BaseModel):
 # engine treats this as disqualifying and forces DON'T APPLY; it must never be
 # softened into a HOLD.
 CRITICAL_INFRA_FAILURE_SOURCE = "critical_infrastructure_failure"
+
+# Sentinel ``RiskFactor.source`` value marking a confirmed zero-tolerance
+# chat-redirection violation: an interview or onboarding briefing was moved
+# onto a personal / anonymous chat network (Telegram, Signal, WhatsApp, bare
+# ``@handle`` …) and no legitimate enterprise-video bypass applied.  The risk
+# engine treats this as a hard gate — the overall score is floored at 92.0 and
+# the verdict is forced to DON'T APPLY.  It can never be averaged down.
+CHAT_REDIRECT_GATE_SOURCE = "chat_redirection_gate"
+
+# Minimum overall risk score enforced while ``CHAT_REDIRECT_GATE_SOURCE`` is
+# present among the aggregated risk factors.
+CHAT_REDIRECT_GATE_SCORE_FLOOR = 92.0
 
 
 class RiskFactor(BaseModel):

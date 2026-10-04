@@ -25,7 +25,7 @@ from app.models.schemas import (
     RiskFactor,
     Severity,
 )
-from app.services import certificate_forensics
+from app.services import certificate_forensics, negation_scope
 
 logger = logging.getLogger(__name__)
 
@@ -139,10 +139,19 @@ async def analyze(
     base_score = 0.0
 
     # 1. Deposit / Hardware Purchase clause in Offer Letter
-    deposit_pattern = re.search(
-        r"(?:refundable|security|equipment|laptop|training|kit|\s)*(?:deposit|charge|fee|amount)\s*(?:of|is)?\s*(?:rs\.?|inr|₹|\$)?\s*(\d+[\d,]*)",
+    #
+    # Every clause regex below is scoped through ``negation_scope`` so that a
+    # *protective* statement ("we never issue financial checks", "no deposit is
+    # payable at Infosys") is not scored as the scam mechanic it forbids.  Only
+    # an active demand — a clause that instructs or performs the action — can
+    # raise the document score.
+    deposit_match = negation_scope.first_active_match(
         text_lower,
+        re.compile(
+            r"(?:refundable|security|equipment|laptop|training|kit|\s)*(?:deposit|charge|fee|amount)\s*(?:of|is)?\s*(?:rs\.?|inr|₹|\$)?\s*(\d+[\d,]*)"
+        ),
     )
+    deposit_pattern = deposit_match
     if deposit_pattern:
         base_score += 65.0
         risk_factors.append(
@@ -160,9 +169,11 @@ async def analyze(
         )
 
     # 2. Fake notary / Government stamp claims in private employment contract
-    stamp_pattern = re.search(
-        r"(?:notarized stamp|govt approved bond|legal agreement bond|ministry of corporate affairs stamp|registered seal)",
+    stamp_pattern = negation_scope.first_active_match(
         text_lower,
+        re.compile(
+            r"(?:notarized stamp|govt approved bond|legal agreement bond|ministry of corporate affairs stamp|registered seal)"
+        ),
     )
     if stamp_pattern:
         base_score += 35.0
@@ -178,7 +189,12 @@ async def analyze(
         )
 
     # 3. Informal communication channel in official appointment letter
-    chat_pattern = re.search(r"(?:telegram|whatsapp|wa\.me/|@gmail\.com|@yahoo\.)", text_lower)
+    # "Infosys never conducts interviews over anonymous chat applications such
+    # as WhatsApp" is an anti-scam warning, not a channel redirection.
+    chat_pattern = negation_scope.first_active_match(
+        text_lower,
+        re.compile(r"(?:telegram|whatsapp|wa\.me/|@gmail\.com|@yahoo\.)"),
+    )
     if chat_pattern:
         base_score += 35.0
         risk_factors.append(
