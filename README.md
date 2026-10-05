@@ -283,6 +283,15 @@ HireShield-AI/
 - Extracted entities are returned to the caller only and are never written to the assessment record; the pipeline performs at most one consent-gated page retrieval per assessment.
 - External retrieval is restricted to public HTTP(S) hosts — a failed or blocked fetch is reported as *unavailable*, never as evidence of fraud.
 
+## College / Incubator Information
+
+**College/Institute:** R. C. Patel Institute of Technology, Shirpur
+
+**Department:** Artificial Intelligence and Machine Learning
+
+**Location:** Shirpur, Maharashtra
+
+
 ## Team
 
 | Member | Role |
