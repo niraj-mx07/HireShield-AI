@@ -37,6 +37,10 @@ from sklearn.metrics import (
     roc_curve,
 )
 
+from ml.training.model_wrapper import BoostedModelWrapper
+import __main__
+setattr(__main__, "BoostedModelWrapper", BoostedModelWrapper)
+
 # ---------------------------------------------------------------------------
 # Paths
 # ---------------------------------------------------------------------------

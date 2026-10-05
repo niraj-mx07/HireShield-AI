@@ -54,6 +54,7 @@ from sklearn.metrics import (
 from sklearn.preprocessing import MaxAbsScaler
 
 from ml.training.feature_extractor import JobPostFeatureExtractor
+from ml.training.model_wrapper import BoostedModelWrapper
 
 warnings.filterwarnings("ignore", category=FutureWarning)
 
@@ -293,60 +294,9 @@ def build_ensemble(
 
 
 # ===========================================================================
-# Step 6: Model Wrapper & Artifact Saving
+# Step 6: Artifact Saving & Model Selection
 # ===========================================================================
-class BoostedModelWrapper:
-    """Wrapper that packages the boosted pipeline for backend compatibility.
 
-    The backend's ``model_loader.py`` calls:
-        vectorizer.transform(text)  -> X
-        model.predict(X)            -> predictions
-
-    This wrapper supports both flows: raw text input (full pipeline) and
-    pre-vectorized sparse input (backward compatibility).
-    """
-
-    def __init__(
-        self,
-        word_tfidf: TfidfVectorizer,
-        feature_extractor: JobPostFeatureExtractor,
-        scaler: MaxAbsScaler,
-        model: Any,
-        optimal_threshold: float = 0.5,
-    ) -> None:
-        self.word_tfidf = word_tfidf
-        self.feature_extractor = feature_extractor
-        self.scaler = scaler
-        self.model = model
-        self.optimal_threshold = optimal_threshold
-
-    def predict(self, X_text: Any) -> np.ndarray:
-        """Predict from raw text or pre-vectorized sparse matrix."""
-        if issparse(X_text):
-            if hasattr(self.model, "predict_proba"):
-                proba = self.model.predict_proba(X_text)[:, 1]
-                return (proba >= self.optimal_threshold).astype(int)
-            return self.model.predict(X_text)
-
-        X_combined = self._build_features(X_text)
-        if hasattr(self.model, "predict_proba"):
-            proba = self.model.predict_proba(X_combined)[:, 1]
-            return (proba >= self.optimal_threshold).astype(int)
-        return self.model.predict(X_combined)
-
-    def predict_proba(self, X_text: Any) -> np.ndarray:
-        """Return probability estimates."""
-        if issparse(X_text):
-            return self.model.predict_proba(X_text)
-        X_combined = self._build_features(X_text)
-        return self.model.predict_proba(X_combined)
-
-    def _build_features(self, texts: Any) -> Any:
-        """Build the full feature matrix from raw texts."""
-        X_word = self.word_tfidf.transform(texts)
-        X_feat = self.feature_extractor.transform(texts)
-        X_feat_scaled = self.scaler.transform(X_feat)
-        return hstack([X_word, csr_matrix(X_feat_scaled)])
 
 
 def select_best(results: Dict[str, Any]) -> str:

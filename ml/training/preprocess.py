@@ -108,6 +108,18 @@ def load_raw() -> pd.DataFrame:
         df_modern = df_modern[["combined_text", "fraudulent"]].dropna(subset=["fraudulent"])
         frames.append(df_modern)
 
+    # 6. Parameter-Based Job Postings Dataset (Financial, Recruiter, Contract, Low-Barrier & Legitimate Counterparts)
+    raw_params_json = RAW_DIR / "parameter_based_job_postings.json"
+    if raw_params_json.exists():
+        df_params = pd.read_json(raw_params_json)
+        print(f"[INFO] Loaded {len(df_params):,} rows from {raw_params_json.name}")
+        cols = ["title", "description", "requirements", "company_profile", "benefits"]
+        for c in cols:
+            df_params[c] = df_params[c].fillna("") if c in df_params.columns else ""
+        df_params["combined_text"] = df_params[cols].agg(" ".join, axis=1).str.strip()
+        df_params = df_params[["combined_text", "fraudulent"]].dropna(subset=["fraudulent"])
+        frames.append(df_params)
+
 
     if not frames:
         print("[ERROR] No raw data found in ml/data/raw/")

@@ -10,7 +10,22 @@ import logging
 from pathlib import Path
 from typing import Any, Optional, Tuple
 
+import sys
 import joblib
+
+# Ensure repo root is in sys.path so 'ml' package can be imported when unpickling
+repo_root = Path(__file__).resolve().parents[3]
+if str(repo_root) not in sys.path and (repo_root / "ml").exists():
+    sys.path.insert(0, str(repo_root))
+
+try:
+    from ml.training.model_wrapper import BoostedModelWrapper
+    from ml.training.feature_extractor import JobPostFeatureExtractor
+    import __main__
+    setattr(__main__, "BoostedModelWrapper", BoostedModelWrapper)
+    setattr(__main__, "JobPostFeatureExtractor", JobPostFeatureExtractor)
+except ImportError:
+    pass
 
 logger = logging.getLogger(__name__)
 

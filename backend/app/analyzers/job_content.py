@@ -59,13 +59,15 @@ async def analyze(
     # 3. Vectorise and predict fraud probability
     try:
         features = vectorizer.transform([combined_text])
-        if hasattr(model, "predict_proba"):
-            # Probabilities for [class 0 (legitimate), class 1 (fraudulent)]
+        if getattr(model, "is_boosted", False) or hasattr(model, "feature_extractor"):
+            probabilities = model.predict_proba([combined_text])[0]
+        elif hasattr(model, "predict_proba"):
             probabilities = model.predict_proba(features)[0]
-            fraud_prob = float(probabilities[1])
         else:
             pred = model.predict(features)[0]
-            fraud_prob = 1.0 if pred == 1 else 0.0
+            probabilities = [0.0, 1.0] if pred == 1 else [1.0, 0.0]
+
+        fraud_prob = float(probabilities[1])
 
         # Normalise to 0–100 risk score
         score = round(min(max(fraud_prob * 100.0, 0.0), 100.0), 2)
@@ -73,20 +75,27 @@ async def analyze(
         logger.error("Error during job content model inference: %s", exc, exc_info=True)
         return CategoryResult(score=0.0, risk_factors=[], analyzed=False)
 
-    # 4. Extract explainable top feature n-grams that triggered the model
+    # 4. Extract explainable top feature n-grams and domain triggers that fired
     detected_phrases: list[str] = []
     try:
+        # Check domain heuristic triggers from feature extractor if present
+        feat_ext = getattr(model, "feature_extractor", None)
+        if feat_ext and hasattr(feat_ext, "explain_triggers"):
+            domain_signals = feat_ext.explain_triggers(combined_text)
+            detected_phrases.extend(domain_signals[:3])
+
         if hasattr(model, "coef_") and hasattr(vectorizer, "get_feature_names_out"):
             feature_names = vectorizer.get_feature_names_out()
             row, cols = features.nonzero()
             word_weights = []
             for col_idx in cols:
-                w = float(model.coef_[0][col_idx]) * float(features[0, col_idx])
-                if w > 0.15:  # positive contribution toward fraud
-                    word_weights.append((feature_names[col_idx], w))
+                if col_idx < len(feature_names):
+                    w = float(model.coef_[0][col_idx]) * float(features[0, col_idx])
+                    if w > 0.15:  # positive contribution toward fraud
+                        word_weights.append((feature_names[col_idx], w))
             # Sort top positive contributing features
             word_weights.sort(key=lambda x: x[1], reverse=True)
-            detected_phrases = [w[0] for w in word_weights[:5]]
+            detected_phrases.extend([w[0] for w in word_weights[:4]])
     except Exception as e:
         logger.debug("Feature importance extraction skipped: %s", e)
 

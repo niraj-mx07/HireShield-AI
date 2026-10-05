@@ -66,3 +66,57 @@ async def test_empty_input_returns_unanalyzed():
 
     result_whitespace = await job_content.analyze(description="   ", company_name="")
     assert result_whitespace.analyzed is False
+
+
+@pytest.mark.asyncio
+async def test_cashier_check_equipment_scam_flagged():
+    """Cashier check home office reimbursement traps should produce high risk score."""
+    check_text = (
+        "We are hiring a Remote Executive Administrative Assistant at $42.50 per hour. "
+        "Upon accepting our offer letter, our finance department will issue an official cashier's check "
+        "of $4,200 for your certified Apple MacBook Pro and home office setup. You must deposit the check via "
+        "mobile check deposit within 24 hours and wire the remaining funds to our certified equipment vendor."
+    )
+    result = await job_content.analyze(
+        description=check_text,
+        company_name="Vanguard Logistics Advisory",
+    )
+    assert result.analyzed is True
+    assert result.score >= 50.0
+    assert len(result.risk_factors) > 0
+
+
+@pytest.mark.asyncio
+async def test_telegram_rating_task_trap_flagged():
+    """Prepaid YouTube / Google Maps rating tasks with daily payouts should produce high risk score."""
+    task_text = (
+        "Work from home part time. Watch and like YouTube videos and review restaurants on Google Maps. "
+        "Earn ₹3,000 to ₹5,000 daily payout guaranteed via Google Pay or PhonePe. "
+        "Connect directly on Telegram @maps_review_tasks to receive worker ID and recharge task balance."
+    )
+    result = await job_content.analyze(
+        description=task_text,
+        company_name="Social Media Promotions Hub",
+    )
+    assert result.analyzed is True
+    assert result.score >= 50.0
+    assert len(result.risk_factors) > 0
+
+
+@pytest.mark.asyncio
+async def test_legitimate_ai_startup_low_risk():
+    """Legitimate tech startup posting with equity and tech stack should remain low risk."""
+    startup_text = (
+        "We are an applied AI startup building multimodal evaluation benchmarks. "
+        "We are looking for a Senior Full Stack Engineer (FastAPI + React). "
+        "Responsibilities: Build distributed data pipelines and clean user interfaces. "
+        "Requirements: 4+ years Python, TypeScript, Docker, and PostgreSQL experience. "
+        "We offer competitive salary, 0.5% equity, health insurance, and equipment stipend. "
+        "Strict zero-fee recruitment policy. Apply on our official portal."
+    )
+    result = await job_content.analyze(
+        description=startup_text,
+        company_name="PromptEngine Labs",
+    )
+    assert result.analyzed is True
+    assert result.score < 40.0

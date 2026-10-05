@@ -22,7 +22,8 @@ ml/.env.*
 .pytest_cache/
 
 # ML — raw data and model artifacts (keep code + small metrics files)
-ml/data/raw/
+ml/data/raw/*
+!ml/data/raw/*.json
 ml/data/processed/
 ml/artifacts/*.joblib
 ml/artifacts/*.pkl

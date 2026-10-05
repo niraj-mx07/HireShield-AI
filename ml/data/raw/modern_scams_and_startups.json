@@ -1,0 +1,90 @@
+[
+  {
+    "title": "US Remote Data Specialist - Cashier's Check Equipment Reimbursement",
+    "company_profile": "Apex Global Logistics Inc",
+    "description": "We are seeking a Remote Data Entry Specialist to handle order tracking and inventory logs. Compensation is $38.50 per hour with 401(k) and medical benefits. Upon acceptance, our accounting department will send you an official cashier's check of $4,200 to purchase your certified home office workstation, ergonomic chair, and encrypted software from our approved vendor portal.",
+    "requirements": "Must be able to deposit check via mobile deposit within 24 hours and forward vendor fees via Zelle or wire transfer to confirm hardware shipment.",
+    "benefits": "Flexible hours, health insurance, paid workstation setup.",
+    "fraudulent": 1
+  },
+  {
+    "title": "WhatsApp Direct HR Recruitment - Amazon Customer Service Executive",
+    "company_profile": "Amazon Recruitment Services India",
+    "description": "Dear Candidate, Your resume has been shortlisted on Naukri for Amazon Work-from-Home Customer Support role. Salary ₹38,000/month + incentives. No prior experience required. Training provided online. To confirm your interview slot and receive HR call letter, connect immediately on WhatsApp: +91 9876543210. A refundable document verification fee of ₹1,850 applies.",
+    "requirements": "Basic English communication, laptop or smartphone, payment of documentation charge via PhonePe/GPay.",
+    "benefits": "Work from home, 5 days working, quarterly bonus.",
+    "fraudulent": 1
+  },
+  {
+    "title": "Telegram Crypto Trading Assistant - Daily Payout Guaranteed",
+    "company_profile": "Binance VIP Quantitative Task Force",
+    "description": "Earn daily crypto profits by executing simple rating and trading arbitrage orders. Level 1 trial: recharge 1,000 USDT to earn 1,350 USDT within 30 minutes. Withdraw directly to your Trust Wallet or Binance account. Join official Telegram VIP group @binance_task_earning for task allocation.",
+    "requirements": "Telegram account, active crypto wallet (TRC20 USDT), minimum recharge for task activation.",
+    "benefits": "Instant commission settlement, VIP bonus tiers up to 5,000 USDT.",
+    "fraudulent": 1
+  },
+  {
+    "title": "Google Maps & YouTube Rating Task Associate",
+    "company_profile": "Social Buzz Media Promotions",
+    "description": "Work from home part-time. Just subscribe to YouTube channels, like videos, and leave 5-star reviews on Google Maps. Earn ₹50 to ₹100 per completed screenshot. Payouts credited every evening directly via UPI or Paytm. Contact mentor on Telegram to get started.",
+    "requirements": "Smartphone, YouTube app, Google Pay or PhonePe account.",
+    "benefits": "Daily payout, no fixed hours, work anytime.",
+    "fraudulent": 1
+  },
+  {
+    "title": "Deloitte Offshore Trainee Analyst - Gate Pass & Background Kit Fee",
+    "company_profile": "Deloitte Touche Tohmatsu India LLP Partner",
+    "description": "Offer of Employment: Selected for Trainee Analyst position at Deloitte Gurgaon office. Annual compensation ₹6,50,000. Due to high candidate volume, you must pay a refundable security deposit of ₹3,200 for RFID corporate access card and medical verification kit before orientation day.",
+    "requirements": "Graduate degree, transfer fee to deloitte.recruitment@okaxis and submit transaction receipt.",
+    "benefits": "Corporate cab, health insurance, annual bonus.",
+    "fraudulent": 1
+  },
+  {
+    "title": "Freelance Translation & Captcha Typing Job - Mandatory Software Key",
+    "company_profile": "Linguistic Solutions Hub",
+    "description": "Translate documents from English to Hindi or type captcha codes. Earn ₹15,000 to ₹30,000 per assignment. To prevent fraud, workers must purchase a licensed typing software access key for ₹999 which will be fully reimbursed in the first milestone payout.",
+    "requirements": "Laptop or desktop, internet connection, payment for software license key.",
+    "benefits": "Weekly bank transfer, unlimited tasks.",
+    "fraudulent": 1
+  },
+  {
+    "title": "AI Model Training & Annotation Specialist - Remote",
+    "company_profile": "PromptEngine Labs",
+    "description": "PromptEngine Labs is a seed-stage YC-backed startup building evaluation benchmarks for multimodal AI models. We are looking for technical annotators and prompt engineers to evaluate code generation outputs and reasoning traces. Flexible part-time or full-time remote contracts.",
+    "requirements": "Strong Python knowledge, familiarity with Git and GitHub, experience using frontier LLMs. Zero registration fees or equipment purchases required.",
+    "benefits": "$30-$50/hr USD, asynchronous remote culture, equipment stipend provided directly by company.",
+    "fraudulent": 0
+  },
+  {
+    "title": "Founding Full Stack Engineer (React & FastAPI)",
+    "company_profile": "HyperScale AI",
+    "description": "HyperScale AI is building an autonomous developer agent platform. We are looking for our first 2 founding engineers to build customer-facing dashboards, real-time WebSocket pipelines, and backend APIs. You will work directly with the founders in Bangalore or remote.",
+    "requirements": "2+ years of experience with React, TypeScript, FastAPI, and PostgreSQL. Self-driven, builder mindset.",
+    "benefits": "Competitive salary (₹25L - ₹40L) + 1.0%-2.5% equity, health coverage, flexible vacation.",
+    "fraudulent": 0
+  },
+  {
+    "title": "Frontend Engineering Intern - Summer 2026",
+    "company_profile": "Razorpay Software Pvt Ltd",
+    "description": "Razorpay is looking for passionate Frontend Engineering Interns to join our Payment Gateway and Banking Experience engineering teams. You will develop modern web interfaces using React, Redux, and Tailwind CSS, collaborating closely with UX designers and backend engineers.",
+    "requirements": "Pursuing B.Tech/B.E./MCA graduating in 2026 or 2027. Strong understanding of JavaScript, HTML/CSS, and web performance.",
+    "benefits": "₹45,000/month stipend, free meals, mentorship from senior engineers, PPO opportunity.",
+    "fraudulent": 0
+  },
+  {
+    "title": "Junior Python / Backend Developer",
+    "company_profile": "Postman Inc",
+    "description": "Join Postman's core platform engineering team in Bangalore. You will contribute to building scalable microservices that power millions of API requests daily across our global API development environment.",
+    "requirements": "Proficiency in Python or Node.js, understanding of RESTful API design, relational databases, and Docker containerization.",
+    "benefits": "Comprehensive medical insurance, wellness allowance, remote-first setup, home office reimbursement.",
+    "fraudulent": 0
+  },
+  {
+    "title": "Associate Software Engineer - Campus Graduate",
+    "company_profile": "Zomato Ltd",
+    "description": "Zomato is hiring Software Engineers for our consumer app and quick-commerce delivery platform (Blinkit). You will write high-throughput code handling millions of transactions every weekend.",
+    "requirements": "Solid grasp of Data Structures and Algorithms, OOP principles, and clean coding practices. Degree in Computer Science or related discipline.",
+    "benefits": "₹16 LPA fixed + ESOPs, comprehensive healthcare, free Zomato Gold, flexible leave policy.",
+    "fraudulent": 0
+  }
+]
