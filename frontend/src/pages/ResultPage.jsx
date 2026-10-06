@@ -6,6 +6,7 @@ import { RiskScoreGauge } from '../components/RiskScoreGauge';
 import { RiskFactorCard } from '../components/RiskFactorCard';
 import { VerificationMatrixItem } from '../components/VerificationMatrixItem';
 import { generateAssessmentPDF } from '../services/pdfGenerator';
+import { mockAnalysisHighRisk } from '../data/mockData';
 
 export const ResultPage = () => {
   const navigate = useNavigate();
@@ -13,6 +14,8 @@ export const ResultPage = () => {
   const [downloadToast, setDownloadToast] = useState(false);
 
   const report = activeReport || mockAnalysisHighRisk;
+  const riskFactors = report?.riskFactors || [];
+  const matrix = report?.matrix || [];
 
   const handleDownloadPDF = () => {
     if (isLoggedIn) {
@@ -134,15 +137,6 @@ export const ResultPage = () => {
                 <span>Scan Report #{report.id}</span>
                 <span>•</span>
                 <span className="text-primary font-bold">{report.confidence} Confidence</span>
-                {isLoggedIn && (
-                  <>
-                    <span>•</span>
-                    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-700 text-[10px] font-semibold lowercase">
-                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                      saved in MongoDB
-                    </span>
-                  </>
-                )}
               </div>
 
               <h1 className="font-serif text-3xl sm:text-4xl font-semibold text-ink">
@@ -194,9 +188,9 @@ export const ResultPage = () => {
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {report.riskFactors.map((rf) => (
+          {riskFactors.map((rf, idx) => (
             <RiskFactorCard
-              key={rf.id}
+              key={rf.id || idx}
               severity={rf.severity}
               severityScore={rf.severityScore}
               category={rf.category}
@@ -221,7 +215,7 @@ export const ResultPage = () => {
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {report.matrix.map((item, idx) => (
+          {matrix.map((item, idx) => (
             <VerificationMatrixItem
               key={idx}
               checkName={item.checkName}

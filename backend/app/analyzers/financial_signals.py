@@ -36,7 +36,10 @@ FEE_DEMAND_PATTERNS = [
     (r"\b(?:gate pass|id card charge|badge fee|uniform charge|medical test charge|bgv verification charge)\b", "Verification / Gate Pass Charge"),
     (r"\b(?:courier charge|shipping charge|customs fee|dispatch charge)\b", "Hardware Shipping / Courier Charge Trap"),
     (r"\b(?:cashier['’]?s?\s*check|reimbursement check|purchase.*portal|certified vendor portal)\b", "Cashier Check Equipment Scam"),
-    (r"\b(?:prepaid task|task recharge|recharge.*wallet|daily payout.*guaranteed|task commission|like.*subscribe.*earn)\b", "Prepaid Investment / Task Scam"),
+    (r"\b(?:prepaid task|task recharge|recharge.*wallet|daily payout.*guaranteed|task commission|like.*subscribe.*earn|order rating task|hotel review task|screenshot.*proof.*commission)\b", "Prepaid Investment & Rating Task Scam"),
+    (r"\b(?:recharge\s*(?:working\s*)?wallet|wallet balance.*freeze|unfreeze.*fee|tax.*clearance.*fee.*withdraw|unlock.*withdrawal)\b", "Wallet Recharge & Frozen Balance Extortion"),
+    (r"\b(?:lms.*license|software utility key|portal activation fee|documentation bond charge|stamp paper fee)\b", "Software Licensing & Portal Activation Charge"),
+    (r"\b(?:original.*(?:marksheets?|certificates?|degrees?)|blank cheque.*submission|service bond.*penalty)\b", "Original Certificate & Bond Extortion"),
 ]
 
 

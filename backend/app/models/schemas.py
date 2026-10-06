@@ -83,11 +83,10 @@ class AssessmentRequest(BaseModel):
     user_id: Optional[str] = Field(None, description="Optional user identifier for saving to user history")
     user_email: Optional[str] = Field(None, description="Optional user email for saving to user history")
     consent_for_external_lookups: bool = Field(
-        False,
+        True,
         description=(
-            "Explicit user consent to perform external lookups "
-            "(company verification, domain checks) that may transmit "
-            "submitted content to third-party services."
+            "User consent to perform external lookups "
+            "(company verification, domain checks, DNS routing verification)."
         ),
     )
 

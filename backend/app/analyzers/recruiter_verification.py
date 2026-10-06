@@ -19,12 +19,13 @@ from app.models.schemas import (
 logger = logging.getLogger(__name__)
 
 import httpx
+from app.data.disposable_email_domains import DISPOSABLE_EMAIL_DOMAINS
 
 # Common free webmail providers
 FREE_EMAIL_DOMAINS = {
     "gmail.com", "yahoo.com", "yahoo.in", "yahoo.co.in", "outlook.com",
     "hotmail.com", "rediffmail.com", "live.com", "aol.com", "icloud.com",
-    "mail.com", "protonmail.com", "zoho.com", "yandex.com",
+    "mail.com", "protonmail.com", "zoho.com", "yandex.com", "gmx.com",
 }
 
 # Major enterprises where recruiters NEVER hire via @gmail/@yahoo
@@ -32,23 +33,69 @@ KNOWN_ENTERPRISES = {
     "tcs", "tata consultancy services", "infosys", "wipro", "cognizant",
     "hcl", "tech mahindra", "amazon", "google", "microsoft", "flipkart",
     "reliance", "jio", "deloitte", "accenture", "ibm", "capgemini", "ey",
-    "ernst & young", "pwc", "kpmg", "apple", "meta", "oracle",
+    "ernst & young", "pwc", "kpmg", "apple", "meta", "oracle", "netflix",
+    "salesforce", "cisco", "intel", "nvidia", "uber", "swiggy", "zomato",
 }
 
 
 async def _check_domain_mx(domain: str) -> list[str]:
-    """Query Cloudflare DNS-over-HTTPS for DNS MX mail exchanger records."""
-    url = f"https://cloudflare-dns.com/dns-query?name={domain}&type=MX"
+    """Query Cloudflare or Google DNS-over-HTTPS for DNS MX mail exchanger records."""
+    # Try 1: Cloudflare DoH
+    url_cf = f"https://cloudflare-dns.com/dns-query?name={domain}&type=MX"
     try:
         async with httpx.AsyncClient(timeout=2.5) as client:
-            resp = await client.get(url, headers={"accept": "application/dns-json"})
+            resp = await client.get(url_cf, headers={"accept": "application/dns-json"})
+            if resp.status_code == 200:
+                data = resp.json()
+                answers = data.get("Answer", [])
+                records = [ans.get("data", "") for ans in answers if ans.get("data")]
+                if records:
+                    return records
+    except Exception as exc:
+        logger.debug("Cloudflare DoH MX lookup skipped/failed for %s: %s", domain, exc)
+
+    # Try 2: Google DoH Fallback
+    url_gg = f"https://dns.google/resolve?name={domain}&type=MX"
+    try:
+        async with httpx.AsyncClient(timeout=2.5) as client:
+            resp = await client.get(url_gg)
             if resp.status_code == 200:
                 data = resp.json()
                 answers = data.get("Answer", [])
                 return [ans.get("data", "") for ans in answers if ans.get("data")]
     except Exception as exc:
-        logger.debug("DNS MX lookup skipped or failed for %s: %s", domain, exc)
+        logger.debug("Google DoH MX lookup skipped/failed for %s: %s", domain, exc)
+
     return []
+
+
+async def _check_domain_dmarc_spf(domain: str) -> dict[str, bool]:
+    """Query DNS TXT records to verify DMARC and SPF anti-spoofing policy."""
+    results = {"has_spf": False, "has_dmarc": False}
+    try:
+        async with httpx.AsyncClient(timeout=2.5) as client:
+            # Check SPF
+            resp = await client.get(f"https://cloudflare-dns.com/dns-query?name={domain}&type=TXT", headers={"accept": "application/dns-json"})
+            if resp.status_code == 200:
+                answers = resp.json().get("Answer", [])
+                for ans in answers:
+                    val = ans.get("data", "").lower()
+                    if "v=spf1" in val:
+                        results["has_spf"] = True
+                        break
+
+            # Check DMARC
+            resp_dmarc = await client.get(f"https://cloudflare-dns.com/dns-query?name=_dmarc.{domain}&type=TXT", headers={"accept": "application/dns-json"})
+            if resp_dmarc.status_code == 200:
+                answers_dmarc = resp_dmarc.json().get("Answer", [])
+                for ans in answers_dmarc:
+                    val = ans.get("data", "").lower()
+                    if "v=dmarc1" in val:
+                        results["has_dmarc"] = True
+                        break
+    except Exception as exc:
+        logger.debug("DNS TXT/DMARC lookup failed for %s: %s", domain, exc)
+    return results
 
 
 
@@ -86,8 +133,24 @@ async def analyze(
     cmp_norm = (company_name or "").strip().lower()
     is_major_enterprise = any(ent in cmp_norm for ent in KNOWN_ENTERPRISES)
 
-    # 1. Free email domain check
-    if email_domain in FREE_EMAIL_DOMAINS:
+    # 1. Disposable / Temporary email domain check
+    if email_domain in DISPOSABLE_EMAIL_DOMAINS:
+        base_score += 85.0
+        risk_factors.append(
+            RiskFactor(
+                category=RiskCategory.RECRUITER_VERIFICATION,
+                severity=Severity.HIGH,
+                description=f"Recruiter email is hosted on a known disposable/temporary email service ({email_domain}).",
+                evidence=(
+                    f"Domain '{email_domain}' is a recognized burner inbox provider. "
+                    "Legitimate recruiters and corporate HR personnel never use temporary disposable email addresses."
+                ),
+                source="disposable_email_registry",
+                confidence=0.98,
+            )
+        )
+    # 2. Free webmail domain check
+    elif email_domain in FREE_EMAIL_DOMAINS:
         if is_major_enterprise:
             base_score += 75.0
             risk_factors.append(
@@ -133,7 +196,7 @@ async def analyze(
                     )
                 )
 
-        # Check live DNS MX records for corporate email domains (when consent granted)
+        # Check live DNS MX and SPF/DMARC records for corporate email domains (when consent granted)
         if consent:
             mx_records = await _check_domain_mx(email_domain)
             if not mx_records:
@@ -152,18 +215,33 @@ async def analyze(
                         confidence=0.95,
                     )
                 )
-            elif not any(rf.severity == Severity.HIGH for rf in risk_factors):
+            else:
                 top_mx = mx_records[0].split()[-1]
-                risk_factors.append(
-                    RiskFactor(
-                        category=RiskCategory.RECRUITER_VERIFICATION,
-                        severity=Severity.LOW,
-                        description="Recruiter email domain has operational mail exchangers.",
-                        evidence=f"DNS MX record confirmed active mail routing server: '{top_mx}'.",
-                        source="dns_mx_verifier",
-                        confidence=0.88,
+                if not any(rf.severity == Severity.HIGH for rf in risk_factors):
+                    risk_factors.append(
+                        RiskFactor(
+                            category=RiskCategory.RECRUITER_VERIFICATION,
+                            severity=Severity.LOW,
+                            description="Recruiter email domain has operational mail exchangers.",
+                            evidence=f"DNS MX record confirmed active mail routing server: '{top_mx}'.",
+                            source="dns_mx_verifier",
+                            confidence=0.88,
+                        )
                     )
-                )
+
+                # Check DMARC & SPF authentication policy
+                auth_status = await _check_domain_dmarc_spf(email_domain)
+                if auth_status["has_dmarc"]:
+                    risk_factors.append(
+                        RiskFactor(
+                            category=RiskCategory.RECRUITER_VERIFICATION,
+                            severity=Severity.LOW,
+                            description="Recruiter domain enforces DMARC anti-spoofing protection.",
+                            evidence=f"Active DNS DMARC record confirmed for '{email_domain}', protecting against unauthorized sender impersonation.",
+                            source="dns_dmarc_verifier",
+                            confidence=0.90,
+                        )
+                    )
 
 
     # 2. Telegram / WhatsApp channel recruitment check

@@ -136,6 +136,7 @@ export const AnalyzePage = () => {
           message: trimmedMsg || undefined,
           user_id: user?.id || undefined,
           user_email: user?.email || undefined,
+          consent_for_external_lookups: true,
         });
       }
 

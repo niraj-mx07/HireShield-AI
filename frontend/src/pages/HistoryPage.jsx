@@ -59,7 +59,7 @@ export const HistoryPage = () => {
             Personal Assessment History
           </h1>
           <p className="text-sm text-ink-muted max-w-md mx-auto">
-            Risk calculation is always free and open. Sign in or create a free candidate account to track your past opportunity scans, export PDF reports, and view historical evidence safely stored in MongoDB.
+            Risk calculation is always free and open. Sign in or create a free candidate account to track your past opportunity scans, export PDF reports, and view historical evidence.
           </p>
         </div>
         <div className="flex items-center justify-center gap-3">
@@ -123,7 +123,7 @@ export const HistoryPage = () => {
 
   const handleDeleteScan = async (e, id) => {
     e.stopPropagation();
-    if (confirm('Delete this assessment record from your MongoDB archive?')) {
+    if (confirm('Delete this assessment record from your history?')) {
       setDeletingId(id);
       await deleteReportFromHistory(id);
       setDeletingId(null);
@@ -146,7 +146,7 @@ export const HistoryPage = () => {
         </div>
       )}
 
-      {/* Header with Dynamic User Name & MongoDB Status Bar */}
+      {/* Header with Dynamic User Name */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div className="space-y-1">
           <div className="flex flex-wrap items-center gap-2 mb-1">
@@ -154,27 +154,13 @@ export const HistoryPage = () => {
               <Sparkles className="w-3.5 h-3.5" />
               <span>Archive • {user?.name || 'Account'}</span>
             </div>
-
-            {/* MongoDB Persistent Storage Badge */}
-            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-700 text-xs font-medium">
-              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-              <Database className="w-3 h-3 text-emerald-600" />
-              <span>
-                {dbSyncStatus === 'syncing'
-                  ? 'Syncing with MongoDB...'
-                  : dbSyncStatus === 'offline'
-                  ? 'Offline Storage Active'
-                  : 'Saved to MongoDB'}
-              </span>
-              {lastSyncedAt && <span className="text-[10px] text-emerald-600/70">({lastSyncedAt})</span>}
-            </div>
           </div>
 
           <h1 className="font-serif text-3xl sm:text-4xl font-semibold text-ink">
             Saved Risk Reports
           </h1>
           <p className="text-xs text-ink-muted">
-            Personal MongoDB archive for <span className="font-semibold text-ink">{user?.email}</span> •{' '}
+            Saved assessments for <span className="font-semibold text-ink">{user?.email}</span> •{' '}
             <span className="font-medium text-ink">{historySource.length} Total Records</span>
           </p>
         </div>
@@ -274,7 +260,7 @@ export const HistoryPage = () => {
             </h3>
             <p className="text-xs text-ink-muted max-w-sm mx-auto">
               {historySource.length === 0
-                ? 'Scan an opportunity on the Analyze page to automatically archive your risk reports and evidence in MongoDB.'
+                ? 'Scan an opportunity on the Analyze page to automatically save your risk reports and evidence.'
                 : 'Try adjusting your search terms or risk filter.'}
             </p>
           </div>
@@ -364,7 +350,7 @@ export const HistoryPage = () => {
                           <button
                             type="button"
                             onClick={(e) => handleDeleteScan(e, item.id)}
-                            title="Delete scan from MongoDB"
+                            title="Delete scan"
                             disabled={deletingId === item.id}
                             className="p-1.5 rounded-lg text-ink-subtle hover:text-red-500 hover:bg-red-50 transition-colors disabled:opacity-50"
                           >

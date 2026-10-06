@@ -75,12 +75,6 @@ export const DashboardPage = () => {
               <Sparkles className="w-3.5 h-3.5" />
               <span>Active Account • {user?.email}</span>
             </div>
-            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-700 text-xs font-medium">
-              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-              <Database className="w-3 h-3 text-emerald-600" />
-              <span>{dbSyncStatus === 'syncing' ? 'Syncing with MongoDB...' : 'Saved in MongoDB'}</span>
-              {lastSyncedAt && <span className="text-[10px] text-emerald-600/70">({lastSyncedAt})</span>}
-            </div>
           </div>
           <h1 className="font-serif text-3xl sm:text-4xl font-semibold text-ink">
             Welcome back, {user?.name || 'Candidate'}

@@ -22,8 +22,8 @@ export const RiskFactorCard = ({
   }
 
   let CategoryIcon = FileSearch;
-  if (categoryType === 'accent-url' || category.includes('URL')) CategoryIcon = Globe;
-  if (categoryType === 'accent-recruiter' || category.includes('Recruiter')) CategoryIcon = UserCheck;
+  if (categoryType === 'accent-url' || category?.includes?.('URL')) CategoryIcon = Globe;
+  if (categoryType === 'accent-recruiter' || category?.includes?.('Recruiter')) CategoryIcon = UserCheck;
 
   return (
     <div className="bg-surface rounded-2xl p-6 shadow-subtle border border-ink/5 flex flex-col justify-between hover:shadow-floating transition-all duration-300">

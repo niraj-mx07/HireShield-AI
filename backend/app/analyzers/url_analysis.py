@@ -22,11 +22,21 @@ logger = logging.getLogger(__name__)
 from datetime import datetime, timezone
 import httpx
 
-# Known trusted job boards and platforms
+# Known trusted job boards, aggregators, and enterprise ATS platforms
 TRUSTED_JOB_PORTALS = {
+    # Job boards & Aggregators
     "linkedin.com", "naukri.com", "internshala.com", "unstop.com",
     "indeed.com", "foundit.in", "monsterindia.com", "glassdoor.com",
     "hirist.com", "instahyre.com", "wellfound.com", "angel.co",
+    "ziprecruiter.com", "simplyhired.com",
+    # Enterprise ATS (Applicant Tracking Systems)
+    "greenhouse.io", "boards.greenhouse.io",
+    "lever.co", "jobs.lever.co",
+    "myworkdayjobs.com", "workday.com",
+    "smartrecruiters.com", "jobs.smartrecruiters.com",
+    "ashbyhq.com", "jobs.ashbyhq.com",
+    "bamboohr.com", "jobvite.com", "icims.com",
+    "recruitee.com", "workable.com", "taleo.net", "brassring.com",
 }
 
 # Suspicious or low-reputation TLDs frequently used in phishing/recruitment scams
@@ -71,7 +81,47 @@ OFFICIAL_MNC_DOMAINS = {
     "zoho": ["zoho.com"],
     "flipkart": ["flipkartcareers.com", "flipkart.com"],
     "reliance": ["ril.com", "jio.com"],
+    "netflix": ["netflix.com", "jobs.netflix.com"],
+    "salesforce": ["salesforce.com", "careers.salesforce.com"],
+    "uber": ["uber.com", "careers.uber.com"],
+    "swiggy": ["swiggy.com", "careers.swiggy.com"],
+    "zomato": ["zomato.com", "careers.zomato.com"],
+    "paytm": ["paytm.com", "careers.paytm.com"],
+    "adobe": ["adobe.com", "careers.adobe.com"],
+    "cisco": ["cisco.com", "jobs.cisco.com"],
+    "intel": ["intel.com", "jobs.intel.com"],
+    "nvidia": ["nvidia.com"],
+    "stripe": ["stripe.com"],
+    "razorpay": ["razorpay.com"],
 }
+
+
+async def _check_domain_dns_resolution(domain: str) -> bool:
+    """Verify live DNS host resolution (A records) via Cloudflare/Google DoH."""
+    url_cf = f"https://cloudflare-dns.com/dns-query?name={domain}&type=A"
+    try:
+        async with httpx.AsyncClient(timeout=2.0) as client:
+            resp = await client.get(url_cf, headers={"accept": "application/dns-json"})
+            if resp.status_code == 200:
+                answers = resp.json().get("Answer", [])
+                if answers:
+                    return True
+    except Exception as exc:
+        logger.debug("DNS A resolution check failed via Cloudflare for %s: %s", domain, exc)
+
+    # Google DoH fallback
+    url_gg = f"https://dns.google/resolve?name={domain}&type=A"
+    try:
+        async with httpx.AsyncClient(timeout=2.0) as client:
+            resp = await client.get(url_gg)
+            if resp.status_code == 200:
+                answers = resp.json().get("Answer", [])
+                if answers:
+                    return True
+    except Exception as exc:
+        logger.debug("DNS A resolution check failed via Google for %s: %s", domain, exc)
+
+    return False
 
 
 async def _check_domain_rdap(domain: str) -> dict | None:
@@ -262,7 +312,26 @@ async def analyze(
         )
 
     # 8. Live RDAP Domain Age & Registration Verification (when external lookups permitted)
+    # 8. Live RDAP & DNS Host Verification (when external lookups permitted)
     if consent and not is_trusted:
+        # Check if domain resolves to active host records
+        is_resolvable = await _check_domain_dns_resolution(domain)
+        if not is_resolvable:
+            base_score += 65.0
+            risk_factors.append(
+                RiskFactor(
+                    category=RiskCategory.URL_WEBSITE,
+                    severity=Severity.HIGH,
+                    description="Unresolvable or non-existent domain name.",
+                    evidence=(
+                        f"Domain '{domain}' does not have any active DNS A host records in global nameservers. "
+                        "The site cannot be resolved and is likely fraudulent or already deactivated."
+                    ),
+                    source="dns_host_verifier",
+                    confidence=0.96,
+                )
+            )
+
         rdap_info = await _check_domain_rdap(domain)
         if rdap_info:
             age_days = rdap_info["age_days"]

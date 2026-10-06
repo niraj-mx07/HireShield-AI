@@ -186,7 +186,7 @@ export const AuthModal = () => {
               {loading ? (
                 <>
                   <Loader2 className="w-4 h-4 animate-spin" />
-                  <span>Connecting to MongoDB...</span>
+                  <span>{mode === 'login' ? 'Signing in...' : 'Creating account...'}</span>
                 </>
               ) : (
                 <>

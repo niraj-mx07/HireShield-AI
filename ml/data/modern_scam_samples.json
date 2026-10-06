@@ -1,0 +1,65 @@
+[
+  {
+    "id": "SCAM-MODERN-001",
+    "scam_type": "telegram_task_scam",
+    "company_claimed": "Omnicom Marketing Global",
+    "title": "Remote Video Engagement & Hotel Review Specialist",
+    "description": "Earn $150 to $450 daily by completing simple online merchant rating tasks. Work 1-2 hours anytime from home. No previous experience needed. You will like YouTube videos, subscribe to channels, and submit screenshots to our mentor on Telegram @omnicom_tasks_bot. Daily payout guaranteed via USDT TRC20 or UPI.",
+    "indicators": ["telegram_bot", "daily_payout", "video_rating_task", "usdt", "screenshot_proof"],
+    "risk_level": "very_high"
+  },
+  {
+    "id": "SCAM-MODERN-002",
+    "scam_type": "whatsapp_recruitment_impersonation",
+    "company_claimed": "Infosys Technologies",
+    "title": "Data Entry & Document Processing Executive",
+    "description": "Dear Candidate, Your resume on Naukri/LinkedIn has been shortlisted for Remote Data Entry. Salary ₹45,000/month. Because this is direct walk-in selection with no technical round, you must deposit ₹4,999 refundable document verification & gate pass fee via Google Pay / PhonePe to confirm onboarding slot. Contact recruiter Priya Sharma on WhatsApp +91 9876543210.",
+    "indicators": ["enterprise_impersonation", "refundable_deposit", "upi_gpay", "whatsapp_walkin", "no_interview"],
+    "risk_level": "very_high"
+  },
+  {
+    "id": "SCAM-MODERN-003",
+    "scam_type": "advance_check_equipment_scam",
+    "company_claimed": "Nexus Health BioPharma",
+    "title": "Clinical Research Data Assistant (Remote)",
+    "description": "We are seeking a Full-Time Remote Clinical Research Assistant ($48/hr). We will mail you a certified cashier's check of $3,500. You must mobile-deposit this check into your personal bank account and wire $3,200 to our verified Apple hardware vendor portal via Zelle/Wire to receive your configured MacBook Pro and biometric scanner.",
+    "indicators": ["cashier_check", "mobile_check_deposit", "certified_vendor_portal", "zelle_reimbursement"],
+    "risk_level": "very_high"
+  },
+  {
+    "id": "SCAM-MODERN-004",
+    "scam_type": "disguised_crypto_arbitrage_task",
+    "company_claimed": "Binance VIP Partners Ltd",
+    "title": "Order Optimization & Quantitative Asset Assistant",
+    "description": "Help global e-commerce merchants boost merchant volume. Level 1 commission: 20%. To unlock high-tier order packages, users must recharge their working wallet with 100 USDT (TRC-20). Funds remain in your account and can be withdrawn immediately after task batch completion.",
+    "indicators": ["crypto_arbitrage", "recharge_wallet", "usdt_trc20", "commission_tier", "frozen_balance"],
+    "risk_level": "very_high"
+  },
+  {
+    "id": "SCAM-MODERN-005",
+    "scam_type": "fake_internship_offer_bond_fee",
+    "company_claimed": "TechVibe Innovations",
+    "title": "Python AI/ML Winter Intern",
+    "description": "Congratulations! You are selected for a 3-month virtual internship at TechVibe. To issue your official offer letter and project toolkit, a one-time LMS software license charge of ₹2,500 is required. Original marksheets and college NOC must be submitted along with a 1-year service bond.",
+    "indicators": ["lms_charge", "internship_fee", "original_marksheets_submission", "service_bond"],
+    "risk_level": "high"
+  },
+  {
+    "id": "LEGIT-MODERN-001",
+    "scam_type": "legitimate_enterprise_listing",
+    "company_claimed": "Stripe",
+    "title": "Software Engineer — Payments Infrastructure",
+    "description": "Stripe is an equal opportunity employer. We build economic infrastructure for the internet. Qualifications: proficiency in Go, Java, or Ruby; experience with distributed systems and ACID transactional databases. Comprehensive benefits include health insurance, 401(k) matching, and parental leave. Stripe never requests payment, equipment fees, or cryptocurrency during any stage of recruitment.",
+    "indicators": ["anti_scam_notice", "equal_opportunity", "401k_benefits", "official_careers_domain"],
+    "risk_level": "low"
+  },
+  {
+    "id": "LEGIT-MODERN-002",
+    "scam_type": "legitimate_ats_internship",
+    "company_claimed": "Figma",
+    "title": "Product Design Intern (Summer 2026)",
+    "description": "Join our collaborative design tools team in San Francisco or Remote US. You will conduct user research, prototype design workflows, and collaborate with engineering leads. Compensation: $48/hr plus relocation assistance. Apply directly via our official Greenhouse portal.",
+    "indicators": ["ats_portal_greenhouse", "hourly_wage_market_standard", "no_upfront_demands"],
+    "risk_level": "low"
+  }
+]
