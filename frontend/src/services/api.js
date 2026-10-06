@@ -5,7 +5,7 @@
  * Automatically adapts to VITE_API_BASE_URL for production deployment (Render, Vercel, Railway).
  */
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000';
+const API_BASE_URL = (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_API_BASE_URL) || 'http://127.0.0.1:8000';
 
 /**
  * Submit an assessment request with JSON body.
@@ -25,6 +25,8 @@ export async function submitAssessment(payload) {
       recruiter_name: payload.recruiter_name || undefined,
       recruiter_phone: payload.recruiter_phone || undefined,
       message: payload.message || undefined,
+      user_id: payload.user_id || undefined,
+      user_email: payload.user_email || undefined,
       consent_for_external_lookups: true,
     }),
   });
@@ -50,6 +52,108 @@ export async function submitAssessmentWithUpload(formData) {
   if (!response.ok) {
     const errText = await response.text();
     throw new Error(`API Error ${response.status}: ${errText}`);
+  }
+
+  return response.json();
+}
+
+/**
+ * MongoDB Auth & User Profile API calls
+ */
+export async function apiSignup(userData) {
+  const url = `${API_BASE_URL}/api/v1/auth/signup`;
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(userData),
+  });
+
+  if (!response.ok) {
+    const errText = await response.text();
+    throw new Error(`Signup Error ${response.status}: ${errText}`);
+  }
+
+  return response.json();
+}
+
+export async function apiLogin(credentials) {
+  const url = `${API_BASE_URL}/api/v1/auth/login`;
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(credentials),
+  });
+
+  if (!response.ok) {
+    const errText = await response.text();
+    throw new Error(`Login Error ${response.status}: ${errText}`);
+  }
+
+  return response.json();
+}
+
+export async function apiGetUser(userEmailOrId) {
+  const url = `${API_BASE_URL}/api/v1/auth/user/${encodeURIComponent(userEmailOrId)}`;
+  const response = await fetch(url);
+  if (!response.ok) {
+    const errText = await response.text();
+    throw new Error(`User Fetch Error ${response.status}: ${errText}`);
+  }
+  return response.json();
+}
+
+/**
+ * MongoDB User History API calls
+ */
+export async function apiGetUserHistory(userEmailOrId) {
+  const url = `${API_BASE_URL}/api/v1/users/${encodeURIComponent(userEmailOrId)}/history`;
+  const response = await fetch(url);
+  if (!response.ok) {
+    const errText = await response.text();
+    throw new Error(`History Fetch Error ${response.status}: ${errText}`);
+  }
+  return response.json();
+}
+
+export async function apiSaveUserHistory(userEmailOrId, items) {
+  const url = `${API_BASE_URL}/api/v1/users/${encodeURIComponent(userEmailOrId)}/history`;
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(Array.isArray(items) ? items : [items]),
+  });
+
+  if (!response.ok) {
+    const errText = await response.text();
+    throw new Error(`History Save Error ${response.status}: ${errText}`);
+  }
+
+  return response.json();
+}
+
+export async function apiDeleteHistoryItem(userEmailOrId, itemId) {
+  const url = `${API_BASE_URL}/api/v1/users/${encodeURIComponent(userEmailOrId)}/history/${encodeURIComponent(itemId)}`;
+  const response = await fetch(url, {
+    method: 'DELETE',
+  });
+
+  if (!response.ok) {
+    const errText = await response.text();
+    throw new Error(`History Delete Error ${response.status}: ${errText}`);
+  }
+
+  return response.json();
+}
+
+export async function apiClearUserHistory(userEmailOrId) {
+  const url = `${API_BASE_URL}/api/v1/users/${encodeURIComponent(userEmailOrId)}/history`;
+  const response = await fetch(url, {
+    method: 'DELETE',
+  });
+
+  if (!response.ok) {
+    const errText = await response.text();
+    throw new Error(`History Clear Error ${response.status}: ${errText}`);
   }
 
   return response.json();
@@ -106,25 +210,32 @@ export function formatBackendResponse(apiData, userInputs = {}) {
     };
   });
 
+  const formattedScore = Math.round(Number(apiData.risk_score) || 0);
+  const resolvedTitle = userInputs.title || userInputs.company_name ? `${userInputs.title || 'Opportunity Assessment'} — ${userInputs.company_name || 'Hiring Entity'}` : 'Opportunity Assessment';
+
   return {
     id: `HS-${(apiData.id || '').slice(0, 8).toUpperCase()}`,
-    jobTitle: userInputs.title || userInputs.company_name ? `${userInputs.title || 'Opportunity Assessment'} — ${userInputs.company_name || 'Hiring Entity'}` : 'Opportunity Assessment',
-    company: userInputs.company_name || 'Hiring Organization',
-    url: userInputs.url || '',
-    recruiterEmail: userInputs.recruiter_email || '',
-    recruiterName: userInputs.recruiter_name || '',
-    scanDate: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) + ' • ' + new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
-    score: Math.round(apiData.risk_score || 0),
-    verdict,
-    riskLevel: riskBand === 'very_high' || riskBand === 'high' ? 'high' : riskBand === 'moderate' ? 'moderate' : 'low',
-    confidence: `${Math.round((apiData.confidence || 0.85) * 100)}%`,
-    summary:
-      apiData.risk_score >= 60
-        ? `High-risk indicators identified. The opportunity received a risk score of ${apiData.risk_score}/100. Critical signals include ${riskFactors.map((r) => r.headline).slice(0, 2).join(' and ')}.`
-        : apiData.risk_score >= 30
-        ? `Moderate risk detected (${apiData.risk_score}/100). Exercise caution before sharing sensitive documents or signing agreements.`
-        : `Verified low-risk opportunity (${apiData.risk_score}/100). All analyzed parameters align with verified employment standards.`,
-    riskFactors,
-    matrix,
-  };
+      jobTitle: resolvedTitle,
+      title: resolvedTitle,
+      company: userInputs.company_name || 'Hiring Organization',
+      url: userInputs.url || '',
+      recruiterEmail: userInputs.recruiter_email || '',
+      recruiterName: userInputs.recruiter_name || '',
+      scanDate: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) + ' • ' + new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
+      date: new Date().toISOString().split('T')[0],
+      score: formattedScore,
+      riskScore: formattedScore,
+      verdict,
+      recommendation: verdict,
+      riskLevel: riskBand === 'very_high' || riskBand === 'high' ? 'high' : riskBand === 'moderate' ? 'moderate' : 'low',
+      confidence: `${Math.round((apiData.confidence || 0.85) * 100)}%`,
+      summary:
+        apiData.risk_score >= 60
+          ? `High-risk indicators identified. The opportunity received a risk score of ${formattedScore}/100. Critical signals include ${riskFactors.map((r) => r.headline).slice(0, 2).join(' and ')}.`
+          : apiData.risk_score >= 30
+          ? `Moderate risk detected (${formattedScore}/100). Exercise caution before sharing sensitive documents or signing agreements.`
+          : `Verified low-risk opportunity (${formattedScore}/100). All analyzed parameters align with verified employment standards.`,
+      riskFactors,
+      matrix,
+    };
 }

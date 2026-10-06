@@ -31,7 +31,7 @@ CRYPTO_PATTERNS = [
 
 FEE_DEMAND_PATTERNS = [
     (r"\b(?:registration fee|processing fee|application fee|interview fee|consultancy charge)\b", "Mandatory Application / Registration Fee"),
-    (r"\b(?:refundable deposit|security deposit|caution deposit|laptop deposit|hardware deposit|equipment deposit)\b", "Security Deposit Demand"),
+    (r"\b(?:refundable (?:deposit|fee|security|charge)|security (?:deposit|fee|charge)|caution deposit|laptop deposit|hardware deposit|equipment deposit)\b", "Security Deposit Demand"),
     (r"\b(?:training fee|training kit charge|certification fee|onboarding kit fee)\b", "Training Kit / Program Fee"),
     (r"\b(?:gate pass|id card charge|badge fee|uniform charge|medical test charge|bgv verification charge)\b", "Verification / Gate Pass Charge"),
     (r"\b(?:courier charge|shipping charge|customs fee|dispatch charge)\b", "Hardware Shipping / Courier Charge Trap"),

@@ -33,6 +33,11 @@ from app.models.schemas import (
     RiskFactor,
     ScamReportRequest,
     ScamReportResponse,
+    UserRegisterRequest,
+    UserLoginRequest,
+    UserProfileResponse,
+    UserProfileUpdateRequest,
+    UserHistoryItemPayload,
 )
 from app.services.pipeline import run_assessment
 
@@ -85,6 +90,10 @@ async def create_assessment_with_upload(
     company_name: Optional[str] = Form(None),
     recruiter_email: Optional[str] = Form(None),
     recruiter_name: Optional[str] = Form(None),
+    recruiter_phone: Optional[str] = Form(None),
+    message: Optional[str] = Form(None),
+    user_id: Optional[str] = Form(None),
+    user_email: Optional[str] = Form(None),
     consent_for_external_lookups: bool = Form(False),
 ) -> AssessmentResponse:
     """Create and run a new risk assessment with a document upload."""
@@ -94,6 +103,10 @@ async def create_assessment_with_upload(
         company_name=company_name,
         recruiter_email=recruiter_email,
         recruiter_name=recruiter_name,
+        recruiter_phone=recruiter_phone,
+        message=message,
+        user_id=user_id,
+        user_email=user_email,
         consent_for_external_lookups=consent_for_external_lookups,
     )
 
@@ -287,6 +300,314 @@ async def get_recent_scams(limit: int = Query(10, ge=1, le=50)):
 
 
 # ---------------------------------------------------------------------------
+# User Authentication & Profile Endpoints (MongoDB)
+# ---------------------------------------------------------------------------
+
+@router.post(
+    "/auth/signup",
+    response_model=UserProfileResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="Register a new user in MongoDB",
+    description="Registers a persistent candidate account in MongoDB.",
+)
+async def signup_user(req: UserRegisterRequest) -> UserProfileResponse:
+    db = get_database()
+    clean_email = req.email.strip().lower()
+    clean_name = req.name.strip()
+    now_str = datetime.now(timezone.utc).isoformat()
+
+    existing = await db.users.find_one({"email": clean_email})
+    if existing:
+        stats = await _compute_user_stats(db, clean_email)
+        return UserProfileResponse(
+            id=existing.get("id", f"USR-{uuid.uuid4().hex[:6].upper()}"),
+            name=existing.get("name", clean_name),
+            email=clean_email,
+            role=existing.get("role", "Candidate / Job Seeker"),
+            avatar=existing.get("avatar", clean_name[:1].upper() if clean_name else "U"),
+            created_at=existing.get("created_at", now_str),
+            updated_at=existing.get("updated_at"),
+            **stats,
+        )
+
+    user_id = f"USR-{uuid.uuid4().hex[:8].upper()}"
+    avatar = (req.avatar or clean_name[:1] or "U").upper()
+    user_doc = {
+        "id": user_id,
+        "name": clean_name,
+        "email": clean_email,
+        "role": req.role or "Candidate / Job Seeker",
+        "avatar": avatar,
+        "created_at": now_str,
+        "updated_at": now_str,
+    }
+    await db.users.insert_one(user_doc)
+
+    return UserProfileResponse(
+        id=user_id,
+        name=clean_name,
+        email=clean_email,
+        role=user_doc["role"],
+        avatar=avatar,
+        created_at=now_str,
+        updated_at=now_str,
+        total_scans=0,
+        high_risk_scans=0,
+        safe_scans=0,
+        moderate_scans=0,
+    )
+
+
+@router.post(
+    "/auth/login",
+    response_model=UserProfileResponse,
+    summary="Sign in or auto-provision candidate profile",
+    description="Authenticates or auto-provisions a candidate profile in MongoDB.",
+)
+async def login_user(req: UserLoginRequest) -> UserProfileResponse:
+    db = get_database()
+    clean_email = req.email.strip().lower()
+    now_str = datetime.now(timezone.utc).isoformat()
+
+    existing = await db.users.find_one({"email": clean_email})
+    if existing:
+        stats = await _compute_user_stats(db, clean_email)
+        return UserProfileResponse(
+            id=existing.get("id", f"USR-{uuid.uuid4().hex[:6].upper()}"),
+            name=existing.get("name", clean_email.split("@")[0].capitalize()),
+            email=clean_email,
+            role=existing.get("role", "Candidate / Job Seeker"),
+            avatar=existing.get("avatar", "U"),
+            created_at=existing.get("created_at", now_str),
+            updated_at=existing.get("updated_at"),
+            **stats,
+        )
+
+    prefix = clean_email.split("@")[0].replace(".", " ").replace("_", " ").title()
+    name = req.name.strip() if req.name else prefix or "Candidate"
+    user_id = f"USR-{uuid.uuid4().hex[:8].upper()}"
+    avatar = name[:1].upper() if name else "U"
+
+    user_doc = {
+        "id": user_id,
+        "name": name,
+        "email": clean_email,
+        "role": "Candidate / Job Seeker",
+        "avatar": avatar,
+        "created_at": now_str,
+        "updated_at": now_str,
+    }
+    await db.users.insert_one(user_doc)
+    stats = await _compute_user_stats(db, clean_email)
+
+    return UserProfileResponse(
+        id=user_id,
+        name=name,
+        email=clean_email,
+        role=user_doc["role"],
+        avatar=avatar,
+        created_at=now_str,
+        updated_at=now_str,
+        **stats,
+    )
+
+
+@router.get(
+    "/auth/user/{user_identifier}",
+    response_model=UserProfileResponse,
+    summary="Get user profile and statistics",
+)
+async def get_user_profile(user_identifier: str) -> UserProfileResponse:
+    db = get_database()
+    clean_id = user_identifier.strip().lower()
+    user = await db.users.find_one({
+        "$or": [{"email": clean_id}, {"id": user_identifier.strip()}]
+    })
+
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"User '{user_identifier}' not found.",
+        )
+
+    user_email = user.get("email", clean_id)
+    stats = await _compute_user_stats(db, user_email)
+
+    return UserProfileResponse(
+        id=user.get("id", f"USR-{uuid.uuid4().hex[:6].upper()}"),
+        name=user.get("name", "Candidate"),
+        email=user_email,
+        role=user.get("role", "Candidate / Job Seeker"),
+        avatar=user.get("avatar", "U"),
+        created_at=user.get("created_at", datetime.now(timezone.utc).isoformat()),
+        updated_at=user.get("updated_at"),
+        **stats,
+    )
+
+
+@router.put(
+    "/auth/user/{user_identifier}",
+    response_model=UserProfileResponse,
+    summary="Update user profile",
+)
+async def update_user_profile(
+    user_identifier: str, req: UserProfileUpdateRequest
+) -> UserProfileResponse:
+    db = get_database()
+    clean_id = user_identifier.strip().lower()
+    update_data = {}
+    if req.name is not None and req.name.strip():
+        update_data["name"] = req.name.strip()
+    if req.role is not None and req.role.strip():
+        update_data["role"] = req.role.strip()
+    if req.avatar is not None and req.avatar.strip():
+        update_data["avatar"] = req.avatar.strip()
+
+    update_data["updated_at"] = datetime.now(timezone.utc).isoformat()
+
+    await db.users.update_one(
+        {"$or": [{"email": clean_id}, {"id": user_identifier.strip()}]},
+        {"$set": update_data},
+    )
+
+    return await get_user_profile(user_identifier)
+
+
+# ---------------------------------------------------------------------------
+# User Assessment History Endpoints (MongoDB)
+# ---------------------------------------------------------------------------
+
+@router.get(
+    "/users/{user_identifier}/history",
+    summary="List all assessment history for a specific user from MongoDB",
+    description="Fetch persistent scans belonging to this user, sorted newest first.",
+)
+async def get_user_history(user_identifier: str):
+    db = get_database()
+    clean_id = user_identifier.strip().lower()
+
+    cursor = db.user_history.find(
+        {"$or": [{"user_email": clean_id}, {"user_id": user_identifier.strip()}]},
+        {"_id": 0}
+    ).sort("created_at", -1)
+
+    items = await cursor.to_list(length=300)
+    return {
+        "user": user_identifier,
+        "total": len(items),
+        "history": items,
+    }
+
+
+@router.post(
+    "/users/{user_identifier}/history",
+    summary="Save or batch sync assessment scans to MongoDB user history",
+    description="Persist assessment scan records for this user.",
+)
+async def save_user_history(user_identifier: str, body: dict | list):
+    db = get_database()
+    clean_email = user_identifier.strip().lower()
+    now_str = datetime.now(timezone.utc).isoformat()
+
+    items = []
+    if isinstance(body, list):
+        items = body
+    elif isinstance(body, dict):
+        if "items" in body and isinstance(body["items"], list):
+            items = body["items"]
+        else:
+            items = [body]
+
+    saved_count = 0
+    for item in items:
+        if not isinstance(item, dict):
+            continue
+        item_id = item.get("id") or f"HS-{uuid.uuid4().hex[:6].upper()}"
+        doc = {
+            **item,
+            "id": item_id,
+            "user_email": clean_email,
+            "created_at": item.get("created_at") or item.get("date") or now_str,
+            "updated_at": now_str,
+        }
+        await db.user_history.update_one(
+            {"id": item_id, "user_email": clean_email},
+            {"$set": doc},
+            upsert=True,
+        )
+        saved_count += 1
+
+    return {"status": "ok", "saved_count": saved_count}
+
+
+@router.delete(
+    "/users/{user_identifier}/history/{item_id}",
+    summary="Delete a single assessment report from user history in MongoDB",
+)
+async def delete_history_item(user_identifier: str, item_id: str):
+    db = get_database()
+    clean_email = user_identifier.strip().lower()
+
+    result = await db.user_history.delete_one({
+        "id": item_id,
+        "$or": [{"user_email": clean_email}, {"user_id": user_identifier.strip()}],
+    })
+
+    if result.deleted_count == 0:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"History item '{item_id}' not found for user.",
+        )
+
+    return {"status": "deleted", "id": item_id}
+
+
+@router.delete(
+    "/users/{user_identifier}/history",
+    summary="Clear all assessment history for a user in MongoDB",
+)
+async def clear_user_history(user_identifier: str):
+    db = get_database()
+    clean_email = user_identifier.strip().lower()
+
+    result = await db.user_history.delete_many({
+        "$or": [{"user_email": clean_email}, {"user_id": user_identifier.strip()}],
+    })
+
+    return {"status": "cleared", "deleted_count": result.deleted_count}
+
+
+async def _compute_user_stats(db, email: str) -> dict:
+    """Helper to compute aggregate scan stats for user profile."""
+    scans = await db.user_history.find(
+        {"user_email": email},
+        {"_id": 0, "riskLevel": 1, "risk_level": 1, "score": 1, "riskScore": 1}
+    ).to_list(length=500)
+    total = len(scans)
+    high = 0
+    mod = 0
+    safe = 0
+    for s in scans:
+        lvl = s.get("riskLevel") or s.get("risk_level")
+        if not lvl:
+            sc = s.get("riskScore", s.get("score", 0))
+            lvl = "high" if sc >= 70 else "moderate" if sc >= 35 else "low"
+        if lvl == "high":
+            high += 1
+        elif lvl == "moderate":
+            mod += 1
+        else:
+            safe += 1
+
+    return {
+        "total_scans": total,
+        "high_risk_scans": high,
+        "safe_scans": safe,
+        "moderate_scans": mod,
+    }
+
+
+# ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
 
@@ -299,11 +620,13 @@ def _validate_has_input(request: AssessmentRequest) -> None:
         request.company_name,
         request.recruiter_email,
         request.recruiter_name,
+        request.recruiter_phone,
+        request.message,
     ]):
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail=(
                 "At least one input field (url, description, company_name, "
-                "recruiter_email, or recruiter_name) must be provided."
+                "recruiter_email, recruiter_name, or message) must be provided."
             ),
         )

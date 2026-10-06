@@ -159,7 +159,7 @@ async def analyze(
         )
 
     # 2. URL Shortener check
-    if any(shortener in domain for shortener in URL_SHORTENERS):
+    if any(domain == shortener or domain.endswith(f".{shortener}") for shortener in URL_SHORTENERS):
         base_score += 45.0
         risk_factors.append(
             RiskFactor(

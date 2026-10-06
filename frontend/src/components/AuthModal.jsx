@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X, ShieldCheck, Mail, Lock, User, ArrowRight, Sparkles, CheckCircle2, FileText, History, BarChart3 } from 'lucide-react';
+import { X, ShieldCheck, Mail, Lock, User, ArrowRight, Sparkles, CheckCircle2, FileText, History, BarChart3, Loader2 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
 export const AuthModal = () => {
@@ -9,6 +9,7 @@ export const AuthModal = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
 
   // Sync mode when modal opens
   React.useEffect(() => {
@@ -20,7 +21,7 @@ export const AuthModal = () => {
 
   if (!isAuthModalOpen) return null;
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
 
@@ -34,15 +35,27 @@ export const AuthModal = () => {
       return;
     }
 
-    if (mode === 'signup') {
-      signup(name, email, password);
-    } else {
-      login(email, password);
+    setLoading(true);
+    try {
+      if (mode === 'signup') {
+        await signup(name, email, password);
+      } else {
+        await login(email, password);
+      }
+    } catch (err) {
+      setError(err?.message || 'Authentication error. Please try again.');
+    } finally {
+      setLoading(false);
     }
   };
 
-  const handleDemoLogin = () => {
-    login('nihar.patil@student.edu', 'demo123', 'Nihar Patil');
+  const handleDemoLogin = async () => {
+    setLoading(true);
+    try {
+      await login('nihar.patil@student.edu', 'demo123', 'Nihar Patil');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -167,10 +180,20 @@ export const AuthModal = () => {
 
             <button
               type="submit"
-              className="w-full py-3 rounded-xl bg-primary text-surface text-xs font-bold shadow-subtle hover:bg-primary-container transition-all flex items-center justify-center gap-2"
+              disabled={loading}
+              className="w-full py-3 rounded-xl bg-primary text-surface text-xs font-bold shadow-subtle hover:bg-primary-container transition-all flex items-center justify-center gap-2 disabled:opacity-60"
             >
-              <span>{mode === 'login' ? 'Sign In & Continue' : 'Create Free Account'}</span>
-              <ArrowRight className="w-4 h-4" />
+              {loading ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <span>Connecting to MongoDB...</span>
+                </>
+              ) : (
+                <>
+                  <span>{mode === 'login' ? 'Sign In & Continue' : 'Create Free Account'}</span>
+                  <ArrowRight className="w-4 h-4" />
+                </>
+              )}
             </button>
           </form>
 
@@ -186,10 +209,15 @@ export const AuthModal = () => {
 
           <button
             type="button"
+            disabled={loading}
             onClick={handleDemoLogin}
-            className="w-full py-2.5 rounded-xl bg-surface-2 border border-ink/10 text-xs font-semibold text-ink hover:bg-surface-2/80 transition-all flex items-center justify-center gap-2"
+            className="w-full py-2.5 rounded-xl bg-surface-2 border border-ink/10 text-xs font-semibold text-ink hover:bg-surface-2/80 transition-all flex items-center justify-center gap-2 disabled:opacity-60"
           >
-            <Sparkles className="w-3.5 h-3.5 text-primary" />
+            {loading ? (
+              <Loader2 className="w-3.5 h-3.5 animate-spin text-primary" />
+            ) : (
+              <Sparkles className="w-3.5 h-3.5 text-primary" />
+            )}
             <span>1-Click Demo Sign In (Student / Job Seeker)</span>
           </button>
 

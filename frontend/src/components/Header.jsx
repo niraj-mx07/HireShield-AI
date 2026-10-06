@@ -4,7 +4,7 @@ import { ShieldCheck, Menu, X, User, LogOut, Sparkles, ChevronDown, CheckCircle2
 import { useAuth } from '../context/AuthContext';
 
 export const Header = () => {
-  const { user, isLoggedIn, logout, openAuthModal } = useAuth();
+  const { user, isLoggedIn, logout, openAuthModal, userHistory, dbSyncStatus } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -70,21 +70,28 @@ export const Header = () => {
                 onClick={() => setUserDropdownOpen(!userDropdownOpen)}
                 className="flex items-center gap-2.5 px-3.5 py-1.5 rounded-full bg-surface-2 border border-ink/10 hover:bg-surface transition-all text-xs font-semibold text-ink"
               >
-                <div className="w-6 h-6 rounded-full bg-primary text-surface flex items-center justify-center text-xs font-bold">
+                <div className="w-6 h-6 rounded-full bg-primary text-surface flex items-center justify-center text-xs font-bold relative">
                   {user?.avatar || 'U'}
+                  <span className="absolute -bottom-0.5 -right-0.5 w-2 h-2 rounded-full bg-emerald-500 border border-surface" />
                 </div>
                 <span>{user?.name || 'Account'}</span>
                 <ChevronDown className="w-3.5 h-3.5 text-ink-subtle" />
               </button>
 
               {userDropdownOpen && (
-                <div className="absolute right-0 mt-2 w-56 bg-surface border border-ink/10 rounded-2xl shadow-floating py-2 z-50 animate-in fade-in duration-150">
-                  <div className="px-4 py-2 border-b border-ink/5">
+                <div className="absolute right-0 mt-2 w-60 bg-surface border border-ink/10 rounded-2xl shadow-floating py-2 z-50 animate-in fade-in duration-150">
+                  <div className="px-4 py-2.5 border-b border-ink/5 space-y-1">
                     <p className="text-xs font-semibold text-ink truncate">{user?.name}</p>
                     <p className="text-[11px] text-ink-subtle truncate">{user?.email}</p>
-                    <span className="inline-block mt-1 px-2 py-0.5 rounded-full bg-secondary-container text-primary text-[10px] font-semibold">
-                      Candidate Account
-                    </span>
+                    <div className="flex items-center gap-2 pt-1">
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-700 text-[10px] font-semibold">
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                        MongoDB Synced
+                      </span>
+                      <span className="text-[10px] text-ink-subtle">
+                        {userHistory?.length || 0} Saved
+                      </span>
+                    </div>
                   </div>
 
                   <Link

@@ -1,13 +1,13 @@
 import React from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { ShieldCheck, ShieldAlert, CheckCircle2, AlertCircle, Clock, Sparkles, PlusCircle, ArrowRight, Lock, User, FileText } from 'lucide-react';
+import { ShieldCheck, ShieldAlert, CheckCircle2, AlertCircle, Clock, Sparkles, PlusCircle, ArrowRight, Lock, User, FileText, Database } from 'lucide-react';
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, Legend, CartesianGrid } from 'recharts';
 import { useAuth } from '../context/AuthContext';
 import { StatCard } from '../components/StatCard';
 import { getScanCounts } from '../data/mockData';
 
 export const DashboardPage = () => {
-  const { user, isLoggedIn, userHistory, openAuthModal, loadReport } = useAuth();
+  const { user, isLoggedIn, userHistory, openAuthModal, loadReport, dbSyncStatus, lastSyncedAt } = useAuth();
   const navigate = useNavigate();
 
   // Locked Guest Preview State if not logged in
@@ -70,9 +70,17 @@ export const DashboardPage = () => {
       {/* Welcome Header with Dynamic User Name */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-secondary-container text-primary text-xs font-semibold mb-2">
-            <Sparkles className="w-3.5 h-3.5" />
-            <span>Active Account • {user?.email}</span>
+          <div className="flex flex-wrap items-center gap-2 mb-2">
+            <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-secondary-container text-primary text-xs font-semibold">
+              <Sparkles className="w-3.5 h-3.5" />
+              <span>Active Account • {user?.email}</span>
+            </div>
+            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-700 text-xs font-medium">
+              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+              <Database className="w-3 h-3 text-emerald-600" />
+              <span>{dbSyncStatus === 'syncing' ? 'Syncing with MongoDB...' : 'Saved in MongoDB'}</span>
+              {lastSyncedAt && <span className="text-[10px] text-emerald-600/70">({lastSyncedAt})</span>}
+            </div>
           </div>
           <h1 className="font-serif text-3xl sm:text-4xl font-semibold text-ink">
             Welcome back, {user?.name || 'Candidate'}
@@ -198,16 +206,16 @@ export const DashboardPage = () => {
                     >
                       <div className="min-w-0">
                         <p className="text-xs font-semibold text-ink truncate group-hover:text-primary transition-colors">
-                          {item.jobTitle}
+                          {item.jobTitle || item.title || 'Opportunity Assessment'}
                         </p>
                         <p className="text-[11px] text-ink-muted truncate">
-                          {item.company} • {item.date}
+                          {item.company} • {item.date || item.scanDate}
                         </p>
                       </div>
 
                       <div className="flex items-center gap-2 flex-shrink-0">
                         <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold ${badgeBg}`}>
-                          {item.riskScore} pts
+                          {item.riskScore ?? item.score ?? 0} pts
                         </span>
                         <ArrowRight className="w-3.5 h-3.5 text-ink-subtle group-hover:translate-x-0.5 transition-transform" />
                       </div>

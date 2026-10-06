@@ -12,7 +12,7 @@ export const ResultPage = () => {
   const { isLoggedIn, activeReport, openAuthModal } = useAuth();
   const [downloadToast, setDownloadToast] = useState(false);
 
-  const report = activeReport;
+  const report = activeReport || mockAnalysisHighRisk;
 
   const handleDownloadPDF = () => {
     if (isLoggedIn) {
@@ -130,10 +130,19 @@ export const ResultPage = () => {
           {/* Right: Executive Summary & Opportunity Details */}
           <div className="lg:col-span-8 space-y-6">
             <div>
-              <div className="flex items-center gap-2 text-xs font-semibold text-ink-subtle uppercase tracking-wider mb-1">
+              <div className="flex flex-wrap items-center gap-2 text-xs font-semibold text-ink-subtle uppercase tracking-wider mb-1">
                 <span>Scan Report #{report.id}</span>
                 <span>•</span>
-                <span className="text-primary font-bold">{report.confidence} Confidence Score</span>
+                <span className="text-primary font-bold">{report.confidence} Confidence</span>
+                {isLoggedIn && (
+                  <>
+                    <span>•</span>
+                    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-700 text-[10px] font-semibold lowercase">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                      saved in MongoDB
+                    </span>
+                  </>
+                )}
               </div>
 
               <h1 className="font-serif text-3xl sm:text-4xl font-semibold text-ink">

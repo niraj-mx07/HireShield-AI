@@ -401,10 +401,14 @@ export const mockHistoryList = [
   {
     id: "HS-2026-8891",
     jobTitle: "Senior Remote Data Specialist",
+    title: "Senior Remote Data Specialist",
     company: "Apex Global Solutions Inc.",
     scanDate: "Sept 11, 2026",
+    date: "2026-09-11",
     score: 88,
+    riskScore: 88,
     verdict: "DON'T APPLY",
+    recommendation: "DON'T APPLY",
     riskLevel: "high",
     type: "Job URL & PDF",
     payload: mockAnalysisHighRisk
@@ -412,10 +416,14 @@ export const mockHistoryList = [
   {
     id: "HS-2026-1205",
     jobTitle: "Software Engineer Intern",
+    title: "Software Engineer Intern",
     company: "Stripe, Inc.",
     scanDate: "Sept 11, 2026",
+    date: "2026-09-11",
     score: 12,
+    riskScore: 12,
     verdict: "APPLY",
+    recommendation: "APPLY",
     riskLevel: "low",
     type: "Job URL",
     payload: mockAnalysisLowRisk
@@ -423,10 +431,14 @@ export const mockHistoryList = [
   {
     id: "HS-2026-7412",
     jobTitle: "Remote Operations Assistant",
+    title: "Remote Operations Assistant",
     company: "Global Logistics Hub LLC",
     scanDate: "Sept 09, 2026",
+    date: "2026-09-09",
     score: 74,
+    riskScore: 74,
     verdict: "DON'T APPLY",
+    recommendation: "DON'T APPLY",
     riskLevel: "high",
     type: "Email Message",
     payload: {
@@ -435,17 +447,23 @@ export const mockHistoryList = [
       jobTitle: "Remote Operations Assistant",
       company: "Global Logistics Hub LLC",
       score: 74,
+      riskScore: 74,
       verdict: "DON'T APPLY",
+      recommendation: "DON'T APPLY",
       scanDate: "Sept 09, 2026 • 11:20 AM"
     }
   },
   {
     id: "HS-2026-5240",
     jobTitle: "Junior Financial Analyst (Contract)",
+    title: "Junior Financial Analyst (Contract)",
     company: "Vanguard Tech Partners",
     scanDate: "Sept 08, 2026",
+    date: "2026-09-08",
     score: 52,
+    riskScore: 52,
     verdict: "HOLD",
+    recommendation: "HOLD",
     riskLevel: "moderate",
     type: "Pasted Description",
     payload: mockAnalysisModerateRisk
@@ -453,10 +471,14 @@ export const mockHistoryList = [
   {
     id: "HS-2026-0819",
     jobTitle: "DevOps Engineer",
+    title: "DevOps Engineer",
     company: "CloudScale Systems",
     scanDate: "Sept 06, 2026",
+    date: "2026-09-06",
     score: 8,
+    riskScore: 8,
     verdict: "APPLY",
+    recommendation: "APPLY",
     riskLevel: "low",
     type: "Job URL",
     payload: {
@@ -465,17 +487,23 @@ export const mockHistoryList = [
       jobTitle: "DevOps Engineer",
       company: "CloudScale Systems",
       score: 8,
+      riskScore: 8,
       verdict: "APPLY",
+      recommendation: "APPLY",
       scanDate: "Sept 06, 2026 • 04:15 PM"
     }
   },
   {
     id: "HS-2026-8201",
     jobTitle: "Content Marketing Lead",
+    title: "Content Marketing Lead",
     company: "NextGen Media Group",
     scanDate: "Sept 04, 2026",
+    date: "2026-09-04",
     score: 82,
+    riskScore: 82,
     verdict: "DON'T APPLY",
+    recommendation: "DON'T APPLY",
     riskLevel: "high",
     type: "Recruiter Email",
     payload: {
@@ -484,17 +512,23 @@ export const mockHistoryList = [
       jobTitle: "Content Marketing Lead",
       company: "NextGen Media Group",
       score: 82,
+      riskScore: 82,
       verdict: "DON'T APPLY",
+      recommendation: "DON'T APPLY",
       scanDate: "Sept 04, 2026 • 01:10 PM"
     }
   },
   {
     id: "HS-2026-3844",
     jobTitle: "Research Assistant (Part-time)",
+    title: "Research Assistant (Part-time)",
     company: "Innovate Bio Labs",
     scanDate: "Sept 01, 2026",
+    date: "2026-09-01",
     score: 38,
+    riskScore: 38,
     verdict: "HOLD",
+    recommendation: "HOLD",
     riskLevel: "moderate",
     type: "Pasted Description",
     payload: {
@@ -503,17 +537,23 @@ export const mockHistoryList = [
       jobTitle: "Research Assistant (Part-time)",
       company: "Innovate Bio Labs",
       score: 38,
+      riskScore: 38,
       verdict: "HOLD",
+      recommendation: "HOLD",
       scanDate: "Sept 01, 2026 • 10:05 AM"
     }
   },
   {
     id: "HS-2026-0511",
     jobTitle: "Product Design Intern",
+    title: "Product Design Intern",
     company: "Shopify",
     scanDate: "Aug 28, 2026",
+    date: "2026-08-28",
     score: 5,
+    riskScore: 5,
     verdict: "APPLY",
+    recommendation: "APPLY",
     riskLevel: "low",
     type: "Job URL",
     payload: {
@@ -522,7 +562,9 @@ export const mockHistoryList = [
       jobTitle: "Product Design Intern",
       company: "Shopify",
       score: 5,
+      riskScore: 5,
       verdict: "APPLY",
+      recommendation: "APPLY",
       scanDate: "Aug 28, 2026 • 03:50 PM"
     }
   }

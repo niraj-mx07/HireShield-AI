@@ -40,6 +40,15 @@ async def lifespan(app: FastAPI):
     logger.info("Connecting to MongoDB at %s ...", settings.database_url)
     await connect()
     logger.info("MongoDB connected -- database: %s", settings.database_name)
+    try:
+        from app.database import get_database
+        db = get_database()
+        await db.users.create_index("email", unique=True)
+        await db.user_history.create_index([("user_email", 1), ("created_at", -1)])
+        await db.user_history.create_index("id")
+        logger.info("MongoDB collections and indexes initialized (users, user_history).")
+    except Exception as exc:
+        logger.warning("MongoDB index initialization skipped: %s", exc)
     load_job_content_model()
     yield
     logger.info("Shutting down — closing MongoDB connection …")

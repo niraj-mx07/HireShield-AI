@@ -84,17 +84,17 @@ export const generateAssessmentPDF = (report) => {
   doc.text(report.id || 'HS-SCAN-2026-X', margin + 12, y + 28);
   doc.text(report.timestamp || new Date().toLocaleString(), margin + 140, y + 28);
   
-  const titleText = `${report.title || 'Job Assessment'} (${report.company || 'Unknown'})`;
+  const titleText = `${report.jobTitle || report.title || 'Job Assessment'} (${report.company || 'Unknown'})`;
   const truncatedTitle = titleText.length > 35 ? titleText.substring(0, 32) + '...' : titleText;
   doc.text(truncatedTitle, margin + 270, y + 28);
 
   y += 52;
 
   // 3. Overall Risk Assessment Summary Box
-  const score = Math.round(report.riskScore ?? 50);
+  const score = Math.round(Number(report.score ?? report.riskScore ?? 0));
   let badgeColor = [34, 197, 94]; // Green for Low
   let riskText = 'LOW RISK';
-  let recommendation = report.recommendation || 'APPLY WITH NORMAL DILIGENCE';
+  let recommendation = report.verdict || report.recommendation || 'APPLY WITH NORMAL DILIGENCE';
 
   if (score >= 70) {
     badgeColor = [239, 68, 68]; // Red for High

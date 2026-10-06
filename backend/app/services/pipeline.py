@@ -31,6 +31,7 @@ from app.models.schemas import (
     AssessmentResponse,
     AssessmentStatus,
     CategoryResult,
+    RiskBand,
     RiskCategory,
     RiskFactor,
     Severity,
@@ -77,19 +78,28 @@ async def run_assessment(
     # ------------------------------------------------------------------
     # 1. Create a pending record in the database
     # ------------------------------------------------------------------
-    db = get_database()
-    input_summary = build_input_summary(
-        url=request.url,
-        description=request.description,
-        company_name=request.company_name,
-        recruiter_email=request.recruiter_email,
-        recruiter_name=request.recruiter_name,
-        recruiter_phone=request.recruiter_phone,
-        message=request.message,
-        has_document=document_bytes is not None,
-    )
-    record = AssessmentRecord(id=assessment_id, input_summary=input_summary)
-    await db.assessments.insert_one(record.model_dump())
+    db = None
+    try:
+        db = get_database()
+        input_summary = build_input_summary(
+            url=request.url,
+            description=request.description,
+            company_name=request.company_name,
+            recruiter_email=request.recruiter_email,
+            recruiter_name=request.recruiter_name,
+            recruiter_phone=request.recruiter_phone,
+            message=request.message,
+            has_document=document_bytes is not None,
+        )
+        record = AssessmentRecord(
+            id=assessment_id,
+            input_summary=input_summary,
+            user_id=request.user_id,
+            user_email=request.user_email.strip().lower() if request.user_email else None,
+        )
+        await db.assessments.insert_one(record.model_dump())
+    except Exception as exc:
+        logger.warning("Database write failed for pending assessment %s: %s", assessment_id, exc)
 
     # ------------------------------------------------------------------
     # 2. Extract Document Text (if any) and Run All Analyzers
@@ -152,7 +162,7 @@ async def run_assessment(
                 request.url,
             ) if v and v.strip()
         ]
-        if query_candidates:
+        if query_candidates and db is not None:
             matched_reports = await db.scam_reports.find(
                 {"indicator_value": {"$in": query_candidates}}
             ).to_list(length=5)
@@ -219,20 +229,60 @@ async def run_assessment(
         created_at=now,
     )
 
-    await db.assessments.update_one(
-        {"id": assessment_id},
-        {"$set": {
-            "status": AssessmentStatus.COMPLETED.value,
-            "risk_score": risk_score,
-            "risk_band": band.value,
-            "recommendation": rec.value,
-            "confidence": confidence,
-            "category_scores": [cs.model_dump() for cs in category_scores],
-            "risk_factors": [rf.model_dump() for rf in risk_factors],
-            "active_inputs": active_inputs,
-            "updated_at": now.isoformat(),
-        }},
-    )
+    if db is not None:
+        try:
+            clean_email = request.user_email.strip().lower() if request.user_email else None
+            await db.assessments.update_one(
+                {"id": assessment_id},
+                {"$set": {
+                    "status": AssessmentStatus.COMPLETED.value,
+                    "risk_score": risk_score,
+                    "risk_band": band.value,
+                    "recommendation": rec.value,
+                    "confidence": confidence,
+                    "category_scores": [cs.model_dump() for cs in category_scores],
+                    "risk_factors": [rf.model_dump() for rf in risk_factors],
+                    "active_inputs": active_inputs,
+                    "updated_at": now.isoformat(),
+                    "user_id": request.user_id,
+                    "user_email": clean_email,
+                }},
+            )
+            if clean_email:
+                clean_company = request.company_name.strip() if request.company_name else "Hiring Entity"
+                job_title = f"{clean_company} Opportunity"
+                history_id = f"HS-{assessment_id[:8].upper()}"
+                hist_item = {
+                    "id": history_id,
+                    "assessment_id": assessment_id,
+                    "user_email": clean_email,
+                    "user_id": request.user_id,
+                    "jobTitle": job_title,
+                    "title": job_title,
+                    "company": clean_company,
+                    "url": request.url or "",
+                    "recruiterEmail": request.recruiter_email or "",
+                    "recruiterName": request.recruiter_name or "",
+                    "date": now.strftime("%Y-%m-%d"),
+                    "scanDate": now.strftime("%b %d, %Y • %I:%M %p"),
+                    "riskScore": round(risk_score),
+                    "score": round(risk_score),
+                    "riskLevel": "high" if band in (RiskBand.HIGH, RiskBand.VERY_HIGH) else "moderate" if band == RiskBand.MODERATE else "low",
+                    "recommendation": rec.value,
+                    "verdict": rec.value,
+                    "type": "Job Listing",
+                    "confidence": f"{round(confidence * 100)}%",
+                    "summary": f"Risk score {round(risk_score)}/100 ({band.value}). Recommendation: {rec.value}.",
+                    "created_at": now.isoformat(),
+                    "updated_at": now.isoformat(),
+                }
+                await db.user_history.update_one(
+                    {"id": history_id, "user_email": clean_email},
+                    {"$set": hist_item},
+                    upsert=True,
+                )
+        except Exception as exc:
+            logger.warning("Database update failed for completed assessment %s: %s", assessment_id, exc)
 
     logger.info(
         "Assessment %s completed — score=%.1f band=%s rec=%s confidence=%.2f inputs=%s",

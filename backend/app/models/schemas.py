@@ -80,6 +80,8 @@ class AssessmentRequest(BaseModel):
     recruiter_name: Optional[str] = Field(None, description="Recruiter name")
     recruiter_phone: Optional[str] = Field(None, description="Recruiter phone number or WhatsApp handle")
     message: Optional[str] = Field(None, description="Recruiter email body, WhatsApp, or Telegram message")
+    user_id: Optional[str] = Field(None, description="Optional user identifier for saving to user history")
+    user_email: Optional[str] = Field(None, description="Optional user email for saving to user history")
     consent_for_external_lookups: bool = Field(
         False,
         description=(
@@ -173,6 +175,8 @@ class AssessmentRecord(BaseModel):
     category_scores: List[CategoryScore] = Field(default_factory=list)
     risk_factors: List[RiskFactor] = Field(default_factory=list)
     active_inputs: List[str] = Field(default_factory=list)
+    user_id: Optional[str] = None
+    user_email: Optional[str] = None
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
@@ -199,4 +203,75 @@ class ScamReportResponse(BaseModel):
     description: str
     loss_amount: Optional[float] = None
     reported_at: datetime
+
+
+# ---------------------------------------------------------------------------
+# User Authentication & Profile Models (MongoDB)
+# ---------------------------------------------------------------------------
+
+class UserRegisterRequest(BaseModel):
+    """Payload for registering a user account."""
+    name: str = Field(..., min_length=1, description="Full name or display name")
+    email: str = Field(..., min_length=3, description="Email address")
+    password: Optional[str] = Field(None, description="Password (optional for demo auth)")
+    role: Optional[str] = Field("Candidate / Job Seeker", description="User role")
+    avatar: Optional[str] = Field(None, description="Initial or avatar icon")
+
+
+class UserLoginRequest(BaseModel):
+    """Payload for signing in."""
+    email: str = Field(..., min_length=3, description="User email address")
+    password: Optional[str] = Field(None, description="Password (optional for demo auth)")
+    name: Optional[str] = Field(None, description="Optional name if auto-creating demo account")
+
+
+class UserProfileResponse(BaseModel):
+    """Sanitized user account profile returned by auth endpoints."""
+    id: str
+    name: str
+    email: str
+    role: str = "Candidate / Job Seeker"
+    avatar: str = "U"
+    created_at: str
+    updated_at: Optional[str] = None
+    total_scans: int = 0
+    high_risk_scans: int = 0
+    safe_scans: int = 0
+    moderate_scans: int = 0
+
+
+class UserProfileUpdateRequest(BaseModel):
+    """Payload for updating user profile fields."""
+    name: Optional[str] = None
+    role: Optional[str] = None
+    avatar: Optional[str] = None
+
+
+# ---------------------------------------------------------------------------
+# User Assessment History Models (MongoDB)
+# ---------------------------------------------------------------------------
+
+class UserHistoryItemPayload(BaseModel):
+    """Assessment item stored in user history."""
+    id: str
+    user_email: Optional[str] = None
+    jobTitle: Optional[str] = None
+    title: Optional[str] = None
+    company: Optional[str] = None
+    url: Optional[str] = None
+    recruiterEmail: Optional[str] = None
+    recruiterName: Optional[str] = None
+    date: Optional[str] = None
+    scanDate: Optional[str] = None
+    riskScore: Optional[float] = 0
+    score: Optional[float] = 0
+    riskLevel: Optional[str] = "low"
+    recommendation: Optional[str] = "HOLD"
+    verdict: Optional[str] = "HOLD"
+    type: Optional[str] = "Job Listing"
+    confidence: Optional[str] = "85%"
+    summary: Optional[str] = None
+    payload: Optional[dict] = Field(default_factory=dict)
+    created_at: Optional[str] = None
+    updated_at: Optional[str] = None
 

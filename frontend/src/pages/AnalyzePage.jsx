@@ -9,11 +9,11 @@ import {
   mockAnalysisIndiaScam,
   mockAnalysisTelegramScam,
 } from '../data/mockData';
-import { submitAssessment, formatBackendResponse } from '../services/api';
+import { submitAssessment, submitAssessmentWithUpload, formatBackendResponse } from '../services/api';
 
 export const AnalyzePage = () => {
   const navigate = useNavigate();
-  const { loadReport } = useAuth();
+  const { user, loadReport } = useAuth();
   const [activeTab, setActiveTab] = useState('url');
 
   // Input States (Persist simultaneously across all tabs)
@@ -41,7 +41,6 @@ export const AnalyzePage = () => {
     setRecruiterPhone('');
     setMessageInput('Hello! Your application for Data Entry Specialist has been approved. Please message our hiring manager on Telegram @apex_hr_dept immediately to claim your $2,000 equipment check.');
     setValidationError('');
-    loadReport(mockAnalysisHighRisk);
   };
 
   const loadPresetIndiaScam = () => {
@@ -54,7 +53,6 @@ export const AnalyzePage = () => {
     setRecruiterPhone('+91 9812345678');
     setMessageInput('Congratulations! Selected for MNC Accounts role. Pay ₹5,000 refundable security deposit via UPI/GPay to confirm slot. Contact WhatsApp: +91 9812345678.');
     setValidationError('');
-    loadReport(mockAnalysisIndiaScam);
   };
 
   const loadPresetTelegramScam = () => {
@@ -67,7 +65,6 @@ export const AnalyzePage = () => {
     setRecruiterPhone('');
     setMessageInput('Hi! To activate your daily $1,500 crypto task bot, connect with our supervisor on Telegram @fast_crypto_jobs.');
     setValidationError('');
-    loadReport(mockAnalysisTelegramScam);
   };
 
   const loadPresetSafe = () => {
@@ -80,7 +77,6 @@ export const AnalyzePage = () => {
     setRecruiterPhone('');
     setMessageInput('Hi Nihar, Thank you for interviewing with Stripe. We are thrilled to offer you a Software Engineer Internship position for Summer 2026!');
     setValidationError('');
-    loadReport(mockAnalysisLowRisk);
   };
 
   const handleFileChange = (e) => {
@@ -99,51 +95,86 @@ export const AnalyzePage = () => {
     const trimmedUrl = urlInput.trim();
     const trimmedDesc = descInput.trim();
     const trimmedMsg = messageInput.trim();
+    const trimmedCompany = companyName.trim();
+    const trimmedRecruiterEmail = recruiterEmail.trim();
+    const trimmedRecruiterName = recruiterName.trim();
+    const trimmedRecruiterPhone = recruiterPhone.trim();
 
     // Check if at least one input across all tabs is provided
-    if (!trimmedUrl && !trimmedDesc && !trimmedMsg && !fileName && !recruiterEmail.trim()) {
-      setValidationError('Please provide a Job URL, Description text, Email/Message, or upload a Document.');
+    if (!trimmedUrl && !trimmedDesc && !trimmedMsg && !fileObject && !trimmedCompany && !trimmedRecruiterEmail) {
+      setValidationError('Please provide a Job URL, Description text, Company Name, Email/Message, or upload a Document.');
       return;
     }
 
     setIsSubmitting(true);
 
     try {
-      // 1. Live API submission to FastAPI backend (all provided fields submitted together)
-      const apiResult = await submitAssessment({
-        url: trimmedUrl || undefined,
-        description: trimmedDesc || undefined,
-        company_name: companyName.trim() || undefined,
-        recruiter_email: recruiterEmail.trim() || undefined,
-        recruiter_name: recruiterName.trim() || undefined,
-        recruiter_phone: recruiterPhone.trim() || undefined,
-        message: trimmedMsg || undefined,
-      });
+      let apiResult;
+      if (fileObject) {
+        const formData = new FormData();
+        formData.append('document', fileObject);
+        if (trimmedUrl) formData.append('url', trimmedUrl);
+        if (trimmedDesc) formData.append('description', trimmedDesc);
+        if (trimmedCompany) formData.append('company_name', trimmedCompany);
+        if (trimmedRecruiterEmail) formData.append('recruiter_email', trimmedRecruiterEmail);
+        if (trimmedRecruiterName) formData.append('recruiter_name', trimmedRecruiterName);
+        if (trimmedRecruiterPhone) formData.append('recruiter_phone', trimmedRecruiterPhone);
+        if (trimmedMsg) formData.append('message', trimmedMsg);
+        if (user?.id) formData.append('user_id', user.id);
+        if (user?.email) formData.append('user_email', user.email);
+        formData.append('consent_for_external_lookups', 'true');
+        apiResult = await submitAssessmentWithUpload(formData);
+      } else {
+        // Live API submission to FastAPI backend
+        apiResult = await submitAssessment({
+          url: trimmedUrl || undefined,
+          description: trimmedDesc || undefined,
+          company_name: trimmedCompany || undefined,
+          recruiter_email: trimmedRecruiterEmail || undefined,
+          recruiter_name: trimmedRecruiterName || undefined,
+          recruiter_phone: trimmedRecruiterPhone || undefined,
+          message: trimmedMsg || undefined,
+          user_id: user?.id || undefined,
+          user_email: user?.email || undefined,
+        });
+      }
 
       const formatted = formatBackendResponse(apiResult, {
         url: trimmedUrl,
         description: trimmedDesc || trimmedMsg,
-        company_name: companyName.trim(),
-        recruiter_email: recruiterEmail,
-        recruiter_name: recruiterName,
+        company_name: trimmedCompany,
+        recruiter_email: trimmedRecruiterEmail,
+        recruiter_name: trimmedRecruiterName,
       });
 
       loadReport(formatted);
     } catch (err) {
       console.warn('Backend live API offline/error, falling back to local evaluation:', err);
       // Fallback matching
-      const combined = (trimmedUrl + ' ' + trimmedDesc + ' ' + trimmedMsg).toLowerCase();
+      const combined = (trimmedCompany + ' ' + trimmedUrl + ' ' + trimmedDesc + ' ' + trimmedMsg).toLowerCase();
+      let baseMock = mockAnalysisHighRisk;
       if (combined.includes('stripe')) {
-        loadReport(mockAnalysisLowRisk);
+        baseMock = mockAnalysisLowRisk;
       } else if (combined.includes('excel') || combined.includes('deposit') || combined.includes('₹5,000') || combined.includes('5000')) {
-        loadReport(mockAnalysisIndiaScam);
+        baseMock = mockAnalysisIndiaScam;
       } else if (combined.includes('crypto') || combined.includes('telegram') || combined.includes('task')) {
-        loadReport(mockAnalysisTelegramScam);
+        baseMock = mockAnalysisTelegramScam;
       } else if (combined.includes('vanguard')) {
-        loadReport(mockAnalysisModerateRisk);
-      } else {
-        loadReport(mockAnalysisHighRisk);
+        baseMock = mockAnalysisModerateRisk;
       }
+
+      const effectiveCompany = trimmedCompany || baseMock.company;
+      const localizedMock = {
+        ...baseMock,
+        id: `HS-${Math.random().toString(36).substring(2, 8).toUpperCase()}`,
+        company: effectiveCompany,
+        jobTitle: trimmedCompany ? `${trimmedCompany} — Employment Assessment` : baseMock.jobTitle,
+        url: trimmedUrl || baseMock.url,
+        recruiterEmail: trimmedRecruiterEmail || baseMock.recruiterEmail,
+        recruiterName: trimmedRecruiterName || baseMock.recruiterName,
+        scanDate: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) + ' • ' + new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
+      };
+      loadReport(localizedMock);
     } finally {
       setIsSubmitting(false);
       navigate('/analyze/processing');
