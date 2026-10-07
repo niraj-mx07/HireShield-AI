@@ -1,194 +1,412 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
-import { mockAnalysisHighRisk } from '../data/mockData';
+import React, {
+  createContext,
+  useContext,
+  useState,
+  useEffect,
+} from "react";
+
+import {
+  onAuthStateChanged,
+  signInWithEmailAndPassword,
+  createUserWithEmailAndPassword,
+  signInWithPopup,
+  GoogleAuthProvider,
+  updateProfile,
+  signOut,
+} from "firebase/auth";
+
+import { auth } from "../firebase";
+import { mockAnalysisHighRisk } from "../data/mockData";
 
 const AuthContext = createContext(null);
 
-const STORAGE_USER_KEY = 'hireshield_auth_user';
-const STORAGE_HISTORY_PREFIX = 'hireshield_user_history_';
+const STORAGE_HISTORY_PREFIX = "hireshield_user_history_";
 
 export const AuthProvider = ({ children }) => {
-  // Load saved user from localStorage
-  const [user, setUser] = useState(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_USER_KEY);
-      return saved ? JSON.parse(saved) : null;
-    } catch {
-      return null;
-    }
-  });
+  // --------------------------------------------------
+  // Firebase user
+  // --------------------------------------------------
 
-  // User-specific scan history
+  const [user, setUser] = useState(null);
+  const [authLoading, setAuthLoading] = useState(true);
+
+  // --------------------------------------------------
+  // HireShield application state
+  // --------------------------------------------------
+
   const [userHistory, setUserHistory] = useState([]);
 
-  const [activeReport, setActiveReport] = useState(mockAnalysisHighRisk);
-  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
-  const [authModalMode, setAuthModalMode] = useState('login'); // 'login' | 'signup'
-  const [authRedirectAction, setAuthRedirectAction] = useState(null);
+  const [activeReport, setActiveReport] =
+    useState(mockAnalysisHighRisk);
 
-  // Load user history when user changes
+  const [isAuthModalOpen, setIsAuthModalOpen] =
+    useState(false);
+
+  const [authModalMode, setAuthModalMode] =
+    useState("login");
+
+  const [authRedirectAction, setAuthRedirectAction] =
+    useState(null);
+
+  // --------------------------------------------------
+  // Listen for Firebase authentication changes
+  // --------------------------------------------------
+
   useEffect(() => {
-    if (user && user.email) {
-      try {
-        const historyKey = `${STORAGE_HISTORY_PREFIX}${user.email.toLowerCase()}`;
-        const savedHistory = localStorage.getItem(historyKey);
-        if (savedHistory) {
-          setUserHistory(JSON.parse(savedHistory));
-        } else {
-          // If fresh user and activeReport exists, add activeReport as first item
-          if (activeReport && activeReport.title) {
-            const initialItem = reportToHistoryItem(activeReport);
-            setUserHistory([initialItem]);
-            localStorage.setItem(historyKey, JSON.stringify([initialItem]));
-          } else {
-            setUserHistory([]);
-          }
-        }
-      } catch (e) {
-        console.error('Failed to load user history:', e);
-        setUserHistory([]);
+    const unsubscribe = onAuthStateChanged(
+      auth,
+      (firebaseUser) => {
+        setUser(firebaseUser);
+        setAuthLoading(false);
       }
-    } else {
+    );
+
+    return unsubscribe;
+  }, []);
+
+  // --------------------------------------------------
+  // Load user's scan history
+  // --------------------------------------------------
+
+  useEffect(() => {
+    if (!user?.email) {
+      setUserHistory([]);
+      return;
+    }
+
+    try {
+      const historyKey =
+        `${STORAGE_HISTORY_PREFIX}${user.email.toLowerCase()}`;
+
+      const savedHistory =
+        localStorage.getItem(historyKey);
+
+      if (savedHistory) {
+        setUserHistory(JSON.parse(savedHistory));
+      } else {
+        if (activeReport?.title) {
+          const initialItem =
+            reportToHistoryItem(activeReport);
+
+          setUserHistory([initialItem]);
+
+          localStorage.setItem(
+            historyKey,
+            JSON.stringify([initialItem])
+          );
+        } else {
+          setUserHistory([]);
+        }
+      }
+    } catch (error) {
+      console.error(
+        "Failed to load user history:",
+        error
+      );
+
       setUserHistory([]);
     }
   }, [user]);
 
-  // Save to localStorage when user changes
-  useEffect(() => {
-    try {
-      if (user) {
-        localStorage.setItem(STORAGE_USER_KEY, JSON.stringify(user));
-      } else {
-        localStorage.removeItem(STORAGE_USER_KEY);
-      }
-    } catch (e) {
-      console.error('Failed to update localStorage auth:', e);
-    }
-  }, [user]);
+  // --------------------------------------------------
+  // Save user history
+  // --------------------------------------------------
 
-  // Save userHistory when it updates
   useEffect(() => {
-    if (user && user.email) {
-      try {
-        const historyKey = `${STORAGE_HISTORY_PREFIX}${user.email.toLowerCase()}`;
-        localStorage.setItem(historyKey, JSON.stringify(userHistory));
-      } catch (e) {
-        console.error('Failed to persist user history:', e);
-      }
+    if (!user?.email) {
+      return;
+    }
+
+    try {
+      const historyKey =
+        `${STORAGE_HISTORY_PREFIX}${user.email.toLowerCase()}`;
+
+      localStorage.setItem(
+        historyKey,
+        JSON.stringify(userHistory)
+      );
+    } catch (error) {
+      console.error(
+        "Failed to save user history:",
+        error
+      );
     }
   }, [userHistory, user]);
 
-  const isLoggedIn = !!user;
+  // --------------------------------------------------
+  // Convert report into history item
+  // --------------------------------------------------
 
-  /**
-   * Helper: Convert active assessment report to History item format
-   */
   const reportToHistoryItem = (report) => {
     const score = report.riskScore ?? 50;
-    const level = score >= 70 ? 'high' : score >= 35 ? 'moderate' : 'low';
+
+    const level =
+      score >= 70
+        ? "high"
+        : score >= 35
+          ? "moderate"
+          : "low";
+
     return {
-      id: report.id || `HS-${Date.now().toString().slice(-6)}`,
-      jobTitle: report.title || 'Opportunity Assessment',
-      company: report.company || 'Unknown Organisation',
-      date: new Date().toISOString().split('T')[0],
+      id:
+        report.id ||
+        `HS-${Date.now().toString().slice(-6)}`,
+
+      jobTitle:
+        report.title ||
+        "Opportunity Assessment",
+
+      company:
+        report.company ||
+        "Unknown Organisation",
+
+      date:
+        new Date()
+          .toISOString()
+          .split("T")[0],
+
       riskScore: score,
+
       riskLevel: level,
-      type: report.source || 'Job Listing',
-      recommendation: report.recommendation || (score >= 70 ? "DON'T APPLY" : score >= 35 ? 'HOLD' : 'APPLY'),
+
+      type:
+        report.source ||
+        "Job Listing",
+
+      recommendation:
+        report.recommendation ||
+        (
+          score >= 70
+            ? "DON'T APPLY"
+            : score >= 35
+              ? "HOLD"
+              : "APPLY"
+        ),
+
       payload: report,
     };
   };
 
-  /**
-   * Add new assessment report to user's personal history
-   */
+  // --------------------------------------------------
+  // Add report to user's history
+  // --------------------------------------------------
+
   const addReportToHistory = (report) => {
     const item = reportToHistoryItem(report);
-    setUserHistory((prev) => {
-      const filtered = prev.filter((h) => h.id !== item.id);
-      return [item, ...filtered];
+
+    setUserHistory((previousHistory) => {
+      const filtered =
+        previousHistory.filter(
+          (historyItem) =>
+            historyItem.id !== item.id
+        );
+
+      return [
+        item,
+        ...filtered,
+      ];
     });
   };
 
-  /**
-   * Log in existing user
-   */
-  const login = (email, password, name) => {
-    const enteredEmail = (email || 'candidate@hireshield.ai').trim();
-    let displayName = name;
-    if (!displayName) {
-      const prefix = enteredEmail.split('@')[0].replace(/[._-]/g, ' ');
-      displayName = prefix.charAt(0).toUpperCase() + prefix.slice(1);
-    }
+  // --------------------------------------------------
+  // EMAIL LOGIN
+  // --------------------------------------------------
 
-    const newUser = {
-      id: `USR-${Date.now().toString().slice(-4)}`,
-      name: displayName,
-      email: enteredEmail,
-      role: 'Student / Candidate',
-      avatar: displayName.charAt(0).toUpperCase(),
-      createdAt: new Date().toLocaleDateString(),
-    };
-
-    setUser(newUser);
-    setIsAuthModalOpen(false);
-
-    if (typeof authRedirectAction === 'function') {
-      authRedirectAction();
-      setAuthRedirectAction(null);
-    }
-    return { success: true };
-  };
-
-  /**
-   * Register a brand new user with their custom name & email
-   */
-  const signup = (name, email, password) => {
-    const cleanName = (name || 'New Member').trim();
-    const cleanEmail = (email || 'user@hireshield.ai').trim();
-
-    const newUser = {
-      id: `USR-${Date.now().toString().slice(-4)}`,
-      name: cleanName,
-      email: cleanEmail,
-      role: 'Candidate / Job Seeker',
-      avatar: cleanName.charAt(0).toUpperCase(),
-      createdAt: new Date().toLocaleDateString(),
-    };
-
-    // Save as new user with empty or current active scan history
-    const historyKey = `${STORAGE_HISTORY_PREFIX}${cleanEmail.toLowerCase()}`;
-    const initialItems = activeReport && activeReport.title ? [reportToHistoryItem(activeReport)] : [];
+  const login = async (email, password) => {
     try {
-      localStorage.setItem(historyKey, JSON.stringify(initialItems));
-    } catch (e) {
-      console.error(e);
-    }
+      const result =
+        await signInWithEmailAndPassword(
+          auth,
+          email.trim(),
+          password
+        );
 
-    setUser(newUser);
-    setUserHistory(initialItems);
-    setIsAuthModalOpen(false);
+      setIsAuthModalOpen(false);
 
-    if (typeof authRedirectAction === 'function') {
-      authRedirectAction();
-      setAuthRedirectAction(null);
+      if (
+        typeof authRedirectAction ===
+        "function"
+      ) {
+        authRedirectAction();
+        setAuthRedirectAction(null);
+      }
+
+      return {
+        success: true,
+        user: result.user,
+      };
+
+    } catch (error) {
+      console.error(
+        "Firebase login error:",
+        error
+      );
+
+      return {
+        success: false,
+        error: getFirebaseErrorMessage(error),
+      };
     }
-    return { success: true };
   };
 
-  /**
-   * Log out user
-   */
-  const logout = () => {
-    setUser(null);
-    setUserHistory([]);
+  // --------------------------------------------------
+  // EMAIL SIGNUP
+  // --------------------------------------------------
+
+  const signup = async (
+    name,
+    email,
+    password
+  ) => {
+    try {
+      const cleanName = name.trim();
+      const cleanEmail = email.trim();
+
+      const result =
+        await createUserWithEmailAndPassword(
+          auth,
+          cleanEmail,
+          password
+        );
+
+      // Store user's name in Firebase
+      await updateProfile(
+        result.user,
+        {
+          displayName: cleanName,
+        }
+      );
+
+      // Create initial history for new user
+      const historyKey =
+        `${STORAGE_HISTORY_PREFIX}${cleanEmail.toLowerCase()}`;
+
+      const initialItems =
+        activeReport?.title
+          ? [reportToHistoryItem(activeReport)]
+          : [];
+
+      try {
+        localStorage.setItem(
+          historyKey,
+          JSON.stringify(initialItems)
+        );
+      } catch (storageError) {
+        console.error(
+          "Failed to save initial history:",
+          storageError
+        );
+      }
+
+      setUserHistory(initialItems);
+      setIsAuthModalOpen(false);
+
+      if (
+        typeof authRedirectAction ===
+        "function"
+      ) {
+        authRedirectAction();
+        setAuthRedirectAction(null);
+      }
+
+      return {
+        success: true,
+        user: result.user,
+      };
+
+    } catch (error) {
+      console.error(
+        "Firebase signup error:",
+        error
+      );
+
+      return {
+        success: false,
+        error: getFirebaseErrorMessage(error),
+      };
+    }
   };
 
-  /**
-   * Modal controls
-   */
-  const openAuthModal = (mode = 'login', actionCallback = null) => {
+  // --------------------------------------------------
+  // GOOGLE LOGIN
+  // --------------------------------------------------
+
+  const loginWithGoogle = async () => {
+    try {
+      const provider =
+        new GoogleAuthProvider();
+
+      provider.setCustomParameters({
+        prompt: "select_account",
+      });
+
+      const result =
+        await signInWithPopup(
+          auth,
+          provider
+        );
+
+      setIsAuthModalOpen(false);
+
+      if (
+        typeof authRedirectAction ===
+        "function"
+      ) {
+        authRedirectAction();
+        setAuthRedirectAction(null);
+      }
+
+      return {
+        success: true,
+        user: result.user,
+      };
+
+    } catch (error) {
+      console.error(
+        "Google login error:",
+        error
+      );
+
+      return {
+        success: false,
+        error: getFirebaseErrorMessage(error),
+      };
+    }
+  };
+
+  // --------------------------------------------------
+  // LOGOUT
+  // --------------------------------------------------
+
+  const logout = async () => {
+    try {
+      await signOut(auth);
+
+      setUser(null);
+      setUserHistory([]);
+
+    } catch (error) {
+      console.error(
+        "Logout error:",
+        error
+      );
+    }
+  };
+
+  // --------------------------------------------------
+  // Authentication modal controls
+  // --------------------------------------------------
+
+  const openAuthModal = (
+    mode = "login",
+    actionCallback = null
+  ) => {
     setAuthModalMode(mode);
-    setAuthRedirectAction(() => actionCallback);
+
+    setAuthRedirectAction(
+      () => actionCallback
+    );
+
     setIsAuthModalOpen(true);
   };
 
@@ -197,27 +415,49 @@ export const AuthProvider = ({ children }) => {
     setAuthRedirectAction(null);
   };
 
+  // --------------------------------------------------
+  // Report handling
+  // --------------------------------------------------
+
   const loadReport = (reportData) => {
     setActiveReport(reportData);
-    if (isLoggedIn) {
+
+    if (user) {
       addReportToHistory(reportData);
     }
   };
+
+  // --------------------------------------------------
+  // Authentication status
+  // --------------------------------------------------
+
+  const isLoggedIn = !!user;
+
+  // --------------------------------------------------
+  // Context provider
+  // --------------------------------------------------
 
   return (
     <AuthContext.Provider
       value={{
         user,
         isLoggedIn,
+        authLoading,
+
         userHistory,
         addReportToHistory,
+
         login,
         signup,
+        loginWithGoogle,
         logout,
+
         activeReport,
         loadReport,
+
         isAuthModalOpen,
         authModalMode,
+
         openAuthModal,
         closeAuthModal,
       }}
@@ -227,10 +467,60 @@ export const AuthProvider = ({ children }) => {
   );
 };
 
-export const useAuth = () => {
-  const context = useContext(AuthContext);
-  if (!context) {
-    throw new Error('useAuth must be used within an AuthProvider');
+// --------------------------------------------------
+// Firebase error messages
+// --------------------------------------------------
+
+const getFirebaseErrorMessage = (error) => {
+  switch (error.code) {
+    case "auth/invalid-credential":
+      return "Incorrect email or password.";
+
+    case "auth/user-not-found":
+      return "No account exists with this email.";
+
+    case "auth/wrong-password":
+      return "Incorrect password.";
+
+    case "auth/email-already-in-use":
+      return "An account already exists with this email.";
+
+    case "auth/weak-password":
+      return "Password should be at least 6 characters.";
+
+    case "auth/invalid-email":
+      return "Please enter a valid email address.";
+
+    case "auth/popup-closed-by-user":
+      return "Google sign-in was cancelled.";
+
+    case "auth/popup-blocked":
+      return "The sign-in popup was blocked by your browser.";
+
+    case "auth/network-request-failed":
+      return "Network error. Please check your internet connection.";
+
+    default:
+      return (
+        error.message ||
+        "Authentication failed. Please try again."
+      );
   }
+};
+
+// --------------------------------------------------
+// useAuth hook
+// --------------------------------------------------
+
+export const useAuth = () => {
+  const context =
+    useContext(AuthContext);
+
+  if (!context) {
+    throw new Error(
+      "useAuth must be used within AuthProvider"
+    );
+  }
+
   return context;
 };
