@@ -39,6 +39,7 @@ from app.models.schemas import (
     normalize_text_payloads,
 )
 from app.services import document_mining, message_threats, nlp_entities, web_retrieval
+from app.services.job_metadata import extract_job_metadata
 from app.services.risk_engine import score_assessment
 from app.utils.privacy import build_input_summary, redact_pii
 
@@ -362,8 +363,15 @@ async def run_assessment(
         active_inputs.append(f"Document ({document_filename or 'Uploaded File'})")
 
     # ------------------------------------------------------------------
-    # 5. Build response and update the DB record
+    # 5. Extract Key Job Parameters & Build Response
     # ------------------------------------------------------------------
+    job_meta = extract_job_metadata(
+        request=request,
+        document_text=extracted_doc_text,
+        document_filename=document_filename,
+        page_text=page_text,
+    )
+
     now = datetime.now(timezone.utc)
     response = AssessmentResponse(
         id=assessment_id,
@@ -372,6 +380,14 @@ async def run_assessment(
         risk_band=band,
         recommendation=rec,
         confidence=confidence,
+        company_name=job_meta.company_name,
+        job_title=job_meta.job_title,
+        recruiter_name=job_meta.recruiter_name,
+        recruiter_contact=job_meta.recruiter_contact,
+        recruiter_email=job_meta.recruiter_email,
+        recruiter_phone=job_meta.recruiter_phone,
+        recruiter_linkedin=job_meta.recruiter_linkedin,
+        detected_sources=job_meta.detected_sources,
         category_scores=category_scores,
         risk_factors=risk_factors,
         active_inputs=active_inputs,
@@ -388,6 +404,7 @@ async def run_assessment(
             "risk_band": band.value,
             "recommendation": rec.value,
             "confidence": confidence,
+            "detected_sources": job_meta.detected_sources,
             "category_scores": [cs.model_dump() for cs in category_scores],
             "risk_factors": [rf.model_dump() for rf in risk_factors],
             "active_inputs": active_inputs,
@@ -397,7 +414,7 @@ async def run_assessment(
     )
 
     logger.info(
-        "Assessment %s completed — score=%.1f band=%s rec=%s confidence=%.2f inputs=%s",
-        assessment_id, risk_score, band.value, rec.value, confidence, active_inputs,
+        "Assessment %s completed — score=%.1f band=%s rec=%s company='%s' title='%s' sources=%s",
+        assessment_id, risk_score, band.value, rec.value, job_meta.company_name, job_meta.job_title, job_meta.detected_sources,
     )
     return response

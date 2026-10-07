@@ -217,6 +217,17 @@ class AssessmentResponse(BaseModel):
         le=1.0,
         description="Overall confidence based on evidence coverage",
     )
+    company_name: str = Field("Unspecified Company", description="Parsed company or hiring organization")
+    job_title: str = Field("Job Opportunity", description="Parsed job title or role")
+    recruiter_name: Optional[str] = Field(None, description="Extracted recruiter name")
+    recruiter_contact: Optional[str] = Field(None, description="Extracted recruiter contact info")
+    recruiter_email: Optional[str] = Field(None, description="Extracted recruiter email")
+    recruiter_phone: Optional[str] = Field(None, description="Extracted recruiter phone")
+    recruiter_linkedin: Optional[str] = Field(None, description="Extracted recruiter LinkedIn URL")
+    detected_sources: List[str] = Field(
+        default_factory=list,
+        description="List of detected input sources scanned for this assessment",
+    )
     category_scores: List[CategoryScore] = Field(default_factory=list)
     risk_factors: List[RiskFactor] = Field(default_factory=list)
     active_inputs: List[str] = Field(default_factory=list, description="Inputs supplied by the user")
@@ -251,6 +262,7 @@ class AssessmentRecord(BaseModel):
         default_factory=dict,
         description="Non-PII summary of submitted inputs (keys provided, lengths, etc.)",
     )
+    detected_sources: List[str] = Field(default_factory=list)
     risk_score: Optional[float] = None
     risk_band: Optional[RiskBand] = None
     recommendation: Optional[Recommendation] = None

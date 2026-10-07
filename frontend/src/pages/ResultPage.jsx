@@ -1,6 +1,23 @@
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { ShieldCheck, ArrowLeft, Download, RefreshCw, PlusCircle, Lock, CheckCircle2, AlertTriangle, UserCheck, Calendar, ExternalLink, Sparkles, FileText } from 'lucide-react';
+import {
+  ShieldCheck,
+  ArrowLeft,
+  Download,
+  RefreshCw,
+  PlusCircle,
+  Lock,
+  CheckCircle2,
+  AlertTriangle,
+  UserCheck,
+  Calendar,
+  ExternalLink,
+  Sparkles,
+  FileText,
+  User,
+  Mail,
+  Phone,
+} from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { RiskScoreGauge } from '../components/RiskScoreGauge';
 import { RiskFactorCard } from '../components/RiskFactorCard';
@@ -14,6 +31,32 @@ export const ResultPage = () => {
 
   const report = activeReport;
 
+  // Safe fallback if report is missing
+  if (!report) {
+    return (
+      <div className="max-w-[800px] mx-auto px-4 py-20 text-center space-y-6">
+        <div className="w-16 h-16 rounded-full bg-secondary-container text-primary flex items-center justify-center mx-auto shadow-subtle">
+          <ShieldCheck className="w-8 h-8" />
+        </div>
+        <div className="space-y-2">
+          <h1 className="font-serif text-3xl font-semibold text-ink">
+            No Active Assessment Found
+          </h1>
+          <p className="text-sm text-ink-muted max-w-md mx-auto">
+            Please run an opportunity scan or select a previous report from your assessment history.
+          </p>
+        </div>
+        <Link
+          to="/analyze"
+          className="inline-flex items-center gap-2 px-6 py-3 rounded-full bg-primary text-surface text-xs font-bold shadow-subtle hover:bg-primary-container transition-all"
+        >
+          <ArrowLeft className="w-4 h-4" />
+          <span>Go to Analysis Page</span>
+        </Link>
+      </div>
+    );
+  }
+
   const handleDownloadPDF = () => {
     if (isLoggedIn) {
       try {
@@ -24,7 +67,6 @@ export const ResultPage = () => {
         console.error('PDF generation error:', err);
       }
     } else {
-      // Prompt user to sign in / sign up to export PDF
       openAuthModal('login', () => {
         generateAssessmentPDF(report);
         setDownloadToast(true);
@@ -32,6 +74,93 @@ export const ResultPage = () => {
       });
     }
   };
+
+  // -------------------------------------------------------------------------
+  // Derive active Source Material Badges
+  // -------------------------------------------------------------------------
+  const rawSources = report.detectedSources || report.activeInputs || [];
+  const sourceBadges = [];
+
+  const hasSource = (keyword) =>
+    rawSources.some((s) => typeof s === 'string' && s.toLowerCase().includes(keyword.toLowerCase()));
+
+  // 1. Job URL / Career Page
+  if (report.url || hasSource('url') || hasSource('career')) {
+    sourceBadges.push({
+      id: 'url',
+      label: '🌐 Job URL / Career Page',
+    });
+  }
+
+  // 2. Pasted Job Description
+  if (
+    hasSource('description') ||
+    hasSource('pasted') ||
+    hasSource('transcript') ||
+    rawSources.includes('Pasted Job Description')
+  ) {
+    sourceBadges.push({
+      id: 'description',
+      label: '📝 Pasted Job Description',
+    });
+  }
+
+  // 3. Offer Letter / Contract PDF
+  if (
+    hasSource('document') ||
+    hasSource('pdf') ||
+    hasSource('offer letter') ||
+    hasSource('contract') ||
+    rawSources.includes('Offer Letter / Contract PDF')
+  ) {
+    sourceBadges.push({
+      id: 'document',
+      label: '📄 Offer Letter / Contract PDF',
+    });
+  }
+
+  // 4. Recruiter Details
+  if (
+    report.recruiterName ||
+    report.recruiterEmail ||
+    report.recruiterPhone ||
+    report.recruiterLinkedin ||
+    hasSource('recruiter') ||
+    rawSources.includes('Recruiter Details')
+  ) {
+    sourceBadges.push({
+      id: 'recruiter',
+      label: '👤 Recruiter Details',
+    });
+  }
+
+  // 5. Email / Message
+  if (
+    hasSource('email') ||
+    hasSource('message') ||
+    hasSource('chat') ||
+    rawSources.includes('Email / Message')
+  ) {
+    sourceBadges.push({
+      id: 'message',
+      label: '💬 Email / Message',
+    });
+  }
+
+  // Fallback badge if empty
+  if (sourceBadges.length === 0) {
+    sourceBadges.push({
+      id: 'default',
+      label: '📝 Pasted Job Description',
+    });
+  }
+
+  const hasRecruiterInfo = Boolean(
+    report.recruiterName ||
+    report.recruiterEmail ||
+    report.recruiterPhone ||
+    report.recruiterLinkedin
+  );
 
   return (
     <div className="max-w-[1200px] mx-auto px-4 sm:px-6 lg:px-8 py-10 space-y-10">
@@ -130,18 +259,42 @@ export const ResultPage = () => {
           {/* Right: Executive Summary & Opportunity Details */}
           <div className="lg:col-span-8 space-y-6">
             <div>
-              <div className="flex items-center gap-2 text-xs font-semibold text-ink-subtle uppercase tracking-wider mb-1">
+              <div className="flex items-center gap-2 text-xs font-semibold text-ink-subtle uppercase tracking-wider mb-1.5">
                 <span>Scan Report #{report.id}</span>
                 <span>•</span>
                 <span className="text-primary font-bold">{report.confidence} Confidence Score</span>
               </div>
 
+              {/* Dynamic Job Title Heading */}
               <h1 className="font-serif text-3xl sm:text-4xl font-semibold text-ink">
-                {report.jobTitle}
+                {report.jobTitle || 'Job Opportunity'}
               </h1>
-              <p className="text-sm font-semibold text-ink-muted mt-1">
-                Company: <span className="text-ink">{report.company}</span>
+
+              {/* Dynamic Company Name & Subtitle */}
+              <p className="text-sm font-medium text-ink-muted mt-1.5 flex flex-wrap items-center gap-1.5">
+                Company: <span className="font-bold text-primary">{report.companyName || report.company || 'N/A'}</span>
+                {report.jobTitle && (
+                  <>
+                    <span className="text-ink-subtle">•</span>
+                    <span>{report.jobTitle}</span>
+                  </>
+                )}
               </p>
+
+              {/* Source Material Metadata Badges */}
+              <div className="flex flex-wrap items-center gap-2 pt-3">
+                <span className="text-[11px] font-semibold text-ink-subtle uppercase tracking-wider mr-1">
+                  Sources Scanned:
+                </span>
+                {sourceBadges.map((badge) => (
+                  <span
+                    key={badge.id}
+                    className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-surface-2 border border-ink/10 text-ink shadow-2xs hover:border-ink/20 transition-all"
+                  >
+                    {badge.label}
+                  </span>
+                ))}
+              </div>
             </div>
 
             {/* Executive Summary */}
@@ -172,6 +325,92 @@ export const ResultPage = () => {
 
         </div>
       </div>
+
+      {/* RECRUITER & CONTACT CREDENTIALS CARD */}
+      {hasRecruiterInfo && (
+        <div className="bg-surface rounded-3xl p-6 sm:p-8 shadow-floating border border-ink/5 space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-ink/5 pb-4">
+            <div className="space-y-1">
+              <div className="flex items-center gap-2 text-primary text-xs font-bold uppercase tracking-wider">
+                <UserCheck className="w-4 h-4" />
+                <span>Recruiter & Contact Information</span>
+              </div>
+              <h2 className="font-serif text-xl sm:text-2xl font-semibold text-ink">
+                Hiring Representative Credentials
+              </h2>
+            </div>
+            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-secondary-container/60 text-primary text-xs font-semibold self-start sm:self-auto">
+              <CheckCircle2 className="w-3.5 h-3.5" />
+              <span>Extracted From Submission</span>
+            </span>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            {/* Recruiter Name */}
+            <div className="bg-surface-2/70 rounded-2xl p-4 border border-ink/5 space-y-1">
+              <div className="text-[10px] font-semibold text-ink-subtle uppercase tracking-wider flex items-center gap-1.5">
+                <User className="w-3.5 h-3.5 text-primary" />
+                <span>Recruiter Name</span>
+              </div>
+              <p className="text-sm font-bold text-ink truncate" title={report.recruiterName || 'Not Provided'}>
+                {report.recruiterName || 'Not Provided'}
+              </p>
+            </div>
+
+            {/* Email */}
+            <div className="bg-surface-2/70 rounded-2xl p-4 border border-ink/5 space-y-1">
+              <div className="text-[10px] font-semibold text-ink-subtle uppercase tracking-wider flex items-center gap-1.5">
+                <Mail className="w-3.5 h-3.5 text-primary" />
+                <span>Contact Email</span>
+              </div>
+              {report.recruiterEmail ? (
+                <a
+                  href={`mailto:${report.recruiterEmail}`}
+                  className="text-sm font-bold text-primary hover:underline truncate block"
+                  title={report.recruiterEmail}
+                >
+                  {report.recruiterEmail}
+                </a>
+              ) : (
+                <p className="text-sm font-medium text-ink-subtle">Not Provided</p>
+              )}
+            </div>
+
+            {/* Phone / WhatsApp */}
+            <div className="bg-surface-2/70 rounded-2xl p-4 border border-ink/5 space-y-1">
+              <div className="text-[10px] font-semibold text-ink-subtle uppercase tracking-wider flex items-center gap-1.5">
+                <Phone className="w-3.5 h-3.5 text-primary" />
+                <span>Phone / Contact</span>
+              </div>
+              <p className="text-sm font-bold text-ink truncate" title={report.recruiterPhone || 'Not Provided'}>
+                {report.recruiterPhone || 'Not Provided'}
+              </p>
+            </div>
+
+            {/* LinkedIn Profile */}
+            <div className="bg-surface-2/70 rounded-2xl p-4 border border-ink/5 space-y-1">
+              <div className="text-[10px] font-semibold text-ink-subtle uppercase tracking-wider flex items-center gap-1.5">
+                <ExternalLink className="w-3.5 h-3.5 text-primary" />
+                <span>LinkedIn Profile</span>
+              </div>
+              {report.recruiterLinkedin ? (
+                <a
+                  href={report.recruiterLinkedin}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-sm font-bold text-primary hover:underline truncate flex items-center gap-1"
+                  title={report.recruiterLinkedin}
+                >
+                  <span className="truncate">View Profile</span>
+                  <ExternalLink className="w-3 h-3 flex-shrink-0" />
+                </a>
+              ) : (
+                <p className="text-sm font-medium text-ink-subtle">Not Provided</p>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* RISK FACTORS BREAKDOWN SECTION */}
       <div className="space-y-6">
@@ -227,3 +466,4 @@ export const ResultPage = () => {
     </div>
   );
 };
+
