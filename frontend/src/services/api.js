@@ -128,13 +128,75 @@ export function formatBackendResponse(apiData, userInputs = {}) {
     };
   });
 
+  // Derive parsed company name
+  const companyName =
+    (apiData.company_name && apiData.company_name !== 'Hiring Organization' ? apiData.company_name : null) ||
+    apiData.companyName ||
+    userInputs.company_name ||
+    userInputs.company ||
+    'Unspecified Company';
+
+  // Derive parsed job title
+  const jobTitle =
+    apiData.job_title ||
+    apiData.jobTitle ||
+    userInputs.job_title ||
+    userInputs.title ||
+    'Job Opportunity';
+
+  // Derive recruiter details
+  const recruiterName =
+    apiData.recruiter_name ||
+    apiData.recruiterName ||
+    userInputs.recruiter_name ||
+    '';
+
+  const recruiterEmail =
+    apiData.recruiter_email ||
+    apiData.recruiterEmail ||
+    userInputs.recruiter_email ||
+    '';
+
+  const recruiterPhone =
+    apiData.recruiter_phone ||
+    apiData.recruiterPhone ||
+    userInputs.recruiter_phone ||
+    '';
+
+  const recruiterLinkedin =
+    apiData.recruiter_linkedin ||
+    apiData.recruiterLinkedin ||
+    userInputs.recruiter_linkedin ||
+    '';
+
+  const recruiterContact =
+    apiData.recruiter_contact ||
+    apiData.recruiterContact ||
+    [recruiterEmail, recruiterPhone, recruiterLinkedin].filter(Boolean).join(' • ') ||
+    '';
+
+  // Detected sources
+  const detectedSources =
+    (apiData.detected_sources && apiData.detected_sources.length > 0 ? apiData.detected_sources : null) ||
+    apiData.detectedSources ||
+    userInputs.detectedSources ||
+    apiData.active_inputs ||
+    [];
+
   return {
     id: `HS-${(apiData.id || '').slice(0, 8).toUpperCase()}`,
-    jobTitle: userInputs.title || userInputs.company_name ? `${userInputs.title || 'Opportunity Assessment'} — ${userInputs.company_name || 'Hiring Entity'}` : 'Opportunity Assessment',
-    company: userInputs.company_name || 'Hiring Organization',
-    url: userInputs.url || '',
-    recruiterEmail: userInputs.recruiter_email || '',
-    recruiterName: userInputs.recruiter_name || '',
+    jobTitle,
+    title: jobTitle,
+    company: companyName,
+    companyName,
+    url: userInputs.url || apiData.url || '',
+    recruiterEmail,
+    recruiterName,
+    recruiterPhone,
+    recruiterLinkedin,
+    recruiterContact,
+    detectedSources,
+    activeInputs: apiData.active_inputs || detectedSources,
     scanDate: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) + ' • ' + new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
     score: Math.round(apiData.risk_score || 0),
     verdict,
