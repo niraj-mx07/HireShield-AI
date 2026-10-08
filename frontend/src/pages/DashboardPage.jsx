@@ -43,21 +43,41 @@ export const DashboardPage = () => {
     );
   }
 
+  // ------------------------------------------------------------------
+  // Classify a single history item by verdict (same logic as ResultPage)
+  // ------------------------------------------------------------------
+  const getItemBucket = (item) => {
+    const v = item.verdict || item.recommendation || null;
+    if (v === "DON'T APPLY" || v === "DONT_APPLY") return 'high';
+    if (v === 'HOLD') return 'moderate';
+    if (v === 'APPLY') return 'low';
+    if (item.riskLevel) return item.riskLevel;
+    const s = item.score ?? item.riskScore ?? 0;
+    return s >= 60 ? 'high' : s >= 30 ? 'moderate' : 'low';
+  };
+
   // Live scan counts from this specific user's history
   const historyList = userHistory || [];
   const counts = getScanCounts(historyList);
   const recentThree = historyList.slice(0, 3);
 
-  // Dynamic Chart Data based on user scans
-  const chartData = [
-    { day: 'Mon', highRisk: 0, safe: 0 },
-    { day: 'Tue', highRisk: 0, safe: 0 },
-    { day: 'Wed', highRisk: 0, safe: 0 },
-    { day: 'Thu', highRisk: 0, safe: 0 },
-    { day: 'Fri', highRisk: 0, safe: 0 },
-    { day: 'Sat', highRisk: counts.highRisk, safe: counts.verifiedSafe },
-    { day: 'Sun', highRisk: 0, safe: counts.moderate },
-  ];
+  // ------------------------------------------------------------------
+  // Chart — last 7 scans mapped into a mini weekly bar chart
+  // Group the most recent scans into 7 slots (newest = rightmost)
+  // ------------------------------------------------------------------
+  const last7 = historyList.slice(0, 7).reverse();
+  const DAYS = ['Slot 1','Slot 2','Slot 3','Slot 4','Slot 5','Slot 6','Latest'];
+  const chartData = DAYS.map((label, i) => {
+    const item = last7[i];
+    if (!item) return { day: label, highRisk: 0, moderate: 0, safe: 0 };
+    const bucket = getItemBucket(item);
+    return {
+      day: label,
+      highRisk: bucket === 'high' ? 1 : 0,
+      moderate: bucket === 'moderate' ? 1 : 0,
+      safe: bucket === 'low' ? 1 : 0,
+    };
+  });
 
   const handleRowClick = (item) => {
     loadReport(item.payload);
@@ -143,17 +163,18 @@ export const DashboardPage = () => {
 
           <div className="h-[280px] w-full">
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+          <BarChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E2E8F0" opacity={0.6} />
-                <XAxis dataKey="day" axisLine={false} tickLine={false} tick={{ fill: '#64748B', fontSize: 12 }} />
+                <XAxis dataKey="day" axisLine={false} tickLine={false} tick={{ fill: '#64748B', fontSize: 11 }} />
                 <YAxis axisLine={false} tickLine={false} tick={{ fill: '#64748B', fontSize: 12 }} allowDecimals={false} />
                 <Tooltip
                   cursor={{ fill: '#F1F5F9', opacity: 0.5 }}
                   contentStyle={{ backgroundColor: '#0F172A', borderRadius: '12px', border: 'none', color: '#FFF', fontSize: '12px' }}
                 />
                 <Legend iconType="circle" wrapperStyle={{ paddingTop: '10px', fontSize: '12px' }} />
-                <Bar dataKey="highRisk" name="High Risk Scams" fill="#EF4444" radius={[6, 6, 0, 0]} />
-                <Bar dataKey="safe" name="Safe / Verified" fill="#22C55E" radius={[6, 6, 0, 0]} />
+                <Bar dataKey="highRisk" name="High Risk (Don't Apply)" fill="#EF4444" radius={[6, 6, 0, 0]} />
+                <Bar dataKey="moderate" name="Moderate (Hold)" fill="#F59E0B" radius={[6, 6, 0, 0]} />
+                <Bar dataKey="safe" name="Verified Safe (Apply)" fill="#22C55E" radius={[6, 6, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </div>
@@ -186,9 +207,18 @@ export const DashboardPage = () => {
             ) : (
               <div className="space-y-3">
                 {recentThree.map((item) => {
-                  const isHigh = item.riskLevel === 'high';
-                  const isMod = item.riskLevel === 'moderate';
-                  const badgeBg = isHigh ? 'bg-risk-high-bg text-risk-high' : isMod ? 'bg-risk-moderate-bg text-risk-moderate' : 'bg-risk-low-bg text-risk-low';
+                  const bucket = getItemBucket(item);
+                  const isHigh = bucket === 'high';
+                  const isMod = bucket === 'moderate';
+
+                  // Colors per verdict bucket
+                  const badgeBg = isHigh
+                    ? 'bg-risk-high-bg text-risk-high'
+                    : isMod
+                      ? 'bg-risk-moderate-bg text-risk-moderate'
+                      : 'bg-risk-low-bg text-risk-low';
+
+                  const verdictLabel = item.verdict || (isHigh ? "DON'T APPLY" : isMod ? 'HOLD' : 'APPLY');
 
                   return (
                     <div
@@ -201,13 +231,13 @@ export const DashboardPage = () => {
                           {item.jobTitle}
                         </p>
                         <p className="text-[11px] text-ink-muted truncate">
-                          {item.company} • {item.date}
+                          {item.company} • {item.scanDate}
                         </p>
                       </div>
 
                       <div className="flex items-center gap-2 flex-shrink-0">
                         <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold ${badgeBg}`}>
-                          {item.riskScore} pts
+                          {verdictLabel}
                         </span>
                         <ArrowRight className="w-3.5 h-3.5 text-ink-subtle group-hover:translate-x-0.5 transition-transform" />
                       </div>

@@ -138,14 +138,37 @@ export const AuthProvider = ({ children }) => {
   // --------------------------------------------------
 
   const reportToHistoryItem = (report) => {
-    const score = report.riskScore ?? 50;
+    // Prefer the final verdict that the ResultPage already shows.
+    // Fall back to numeric score thresholds only when verdict is absent.
+    const verdict = report.verdict || report.recommendation || null;
 
-    const level =
-      score >= 70
-        ? "high"
-        : score >= 35
-          ? "moderate"
-          : "low";
+    // Derive riskLevel from verdict first, then from the stored riskLevel,
+    // then from score as a last resort.
+    let riskLevel = report.riskLevel || null;
+    if (!riskLevel) {
+      if (verdict === "DON'T APPLY" || verdict === "DONT_APPLY") {
+        riskLevel = "high";
+      } else if (verdict === "HOLD") {
+        riskLevel = "moderate";
+      } else if (verdict === "APPLY") {
+        riskLevel = "low";
+      } else {
+        // Numeric fallback — only reached when neither verdict nor riskLevel exists
+        const score = report.score ?? report.riskScore ?? 50;
+        riskLevel = score >= 60 ? "high" : score >= 30 ? "moderate" : "low";
+      }
+    }
+
+    const score = report.score ?? report.riskScore ?? 50;
+
+    // Canonical verdict label derived from riskLevel so it is always consistent
+    const canonicalVerdict =
+      verdict ||
+      (riskLevel === "high"
+        ? "DON'T APPLY"
+        : riskLevel === "moderate"
+          ? "HOLD"
+          : "APPLY");
 
     return {
       id:
@@ -153,35 +176,33 @@ export const AuthProvider = ({ children }) => {
         `HS-${Date.now().toString().slice(-6)}`,
 
       jobTitle:
+        report.jobTitle ||
         report.title ||
         "Opportunity Assessment",
 
       company:
+        report.companyName ||
         report.company ||
         "Unknown Organisation",
 
-      date:
-        new Date()
-          .toISOString()
-          .split("T")[0],
+      scanDate:
+        report.scanDate ||
+        new Date().toLocaleDateString("en-US", {
+          month: "short",
+          day: "numeric",
+          year: "numeric",
+        }),
 
-      riskScore: score,
+      score,
 
-      riskLevel: level,
+      riskLevel,
+
+      verdict: canonicalVerdict,
 
       type:
         report.source ||
+        (report.detectedSources && report.detectedSources[0]) ||
         "Job Listing",
-
-      recommendation:
-        report.recommendation ||
-        (
-          score >= 70
-            ? "DON'T APPLY"
-            : score >= 35
-              ? "HOLD"
-              : "APPLY"
-        ),
 
       payload: report,
     };

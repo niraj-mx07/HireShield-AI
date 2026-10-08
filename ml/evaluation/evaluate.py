@@ -37,6 +37,15 @@ from sklearn.metrics import (
     roc_curve,
 )
 
+# Import wrapper classes so joblib can deserialize saved model artifacts.
+# These must be importable from the same module path used during save.
+try:
+    from ml.training.model_wrapper import ImprovedModelWrapper  # noqa: F401 — needed for joblib
+    from ml.training.train_boosted import BoostedModelWrapper   # noqa: F401 — needed for joblib
+except ImportError:
+    pass  # Graceful fallback if run outside the ml package context
+
+
 # ---------------------------------------------------------------------------
 # Paths
 # ---------------------------------------------------------------------------
@@ -65,12 +74,16 @@ def load_assets():
     test_df = pd.read_csv(TEST_CSV)
     test_df[TEXT_COLUMN] = test_df[TEXT_COLUMN].fillna("")
 
-    # Detect model type
+    # Detect model type — BoostedModelWrapper (v1) and ImprovedModelWrapper (v2)
+    # are both treated as "boosted" pipelines that handle full text-to-prediction.
     model_type = type(model).__name__
-    is_boosted = model_type == "BoostedModelWrapper"
+    is_boosted = model_type in ("BoostedModelWrapper", "ImprovedModelWrapper")
 
     print(f"[INFO] Loaded model from {model_path.name} (type: {model_type})")
-    print(f"[INFO] Pipeline: {'Boosted' if is_boosted else 'Baseline'}")
+    pipeline_label = "Improved v2" if model_type == "ImprovedModelWrapper" else (
+        "Boosted v1" if model_type == "BoostedModelWrapper" else "Baseline"
+    )
+    print(f"[INFO] Pipeline: {pipeline_label}")
     print(f"[INFO] Loaded vectoriser from {vec_path.name}")
     print(f"[INFO] Test set: {len(test_df):,} rows")
     return vectorizer, model, test_df, is_boosted
