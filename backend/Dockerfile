@@ -24,7 +24,7 @@ RUN if [ "$INSTALL_NLP" = "true" ]; then pip install --no-cache-dir -r requireme
 COPY backend/ ./
 
 # Copy ML artifacts into position
-COPY ml/artifacts/ /app/ml/artifacts/
+COPY ml/ /app/ml/
 
 EXPOSE 8000
 
