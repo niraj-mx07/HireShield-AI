@@ -1,37 +1,220 @@
 {
-  "logistic_regression": {
-    "precision_fraud": 0.8678,
-    "recall_fraud": 0.8995,
-    "f1_fraud": 0.8834,
+  "linear_svm_C0.1": {
+    "precision_fraud_default": 0.9551,
+    "recall_fraud_default": 0.787,
+    "f1_fraud_default": 0.8629,
+    "precision_fraud_optimized": 0.8714,
+    "recall_fraud_optimized": 0.8472,
+    "f1_fraud_optimized": 0.8592,
+    "optimal_threshold": 0.2607,
+    "roc_auc": 0.9932,
+    "pr_auc": 0.939,
+    "accuracy_optimized": 0.9822,
     "confusion_matrix": [
       [
         3119,
-        30
+        27
       ],
       [
-        22,
-        197
+        33,
+        183
       ]
     ],
-    "classification_report": "              precision    recall  f1-score   support\n\n        real       0.99      0.99      0.99      3149\n       fraud       0.87      0.90      0.88       219\n\n    accuracy                           0.98      3368\n   macro avg       0.93      0.95      0.94      3368\nweighted avg       0.98      0.98      0.98      3368\n",
-    "train_time_seconds": 0.29
+    "classification_report": "              precision    recall  f1-score   support\n\n        real       0.99      0.99      0.99      3146\n       fraud       0.87      0.85      0.86       216\n\n    accuracy                           0.98      3362\n   macro avg       0.93      0.92      0.92      3362\nweighted avg       0.98      0.98      0.98      3362\n",
+    "train_time_seconds": 14.56
   },
-  "random_forest": {
-    "precision_fraud": 0.9728,
-    "recall_fraud": 0.653,
-    "f1_fraud": 0.7814,
+  "linear_svm_C0.5": {
+    "precision_fraud_default": 0.9505,
+    "recall_fraud_default": 0.8009,
+    "f1_fraud_default": 0.8693,
+    "precision_fraud_optimized": 0.9043,
+    "recall_fraud_optimized": 0.875,
+    "f1_fraud_optimized": 0.8894,
+    "optimal_threshold": 0.2347,
+    "roc_auc": 0.9949,
+    "pr_auc": 0.9531,
+    "accuracy_optimized": 0.986,
     "confusion_matrix": [
       [
-        3145,
-        4
+        3126,
+        20
       ],
       [
-        76,
-        143
+        27,
+        189
       ]
     ],
-    "classification_report": "              precision    recall  f1-score   support\n\n        real       0.98      1.00      0.99      3149\n       fraud       0.97      0.65      0.78       219\n\n    accuracy                           0.98      3368\n   macro avg       0.97      0.83      0.88      3368\nweighted avg       0.98      0.98      0.97      3368\n",
-    "train_time_seconds": 3.84
+    "classification_report": "              precision    recall  f1-score   support\n\n        real       0.99      0.99      0.99      3146\n       fraud       0.90      0.88      0.89       216\n\n    accuracy                           0.99      3362\n   macro avg       0.95      0.93      0.94      3362\nweighted avg       0.99      0.99      0.99      3362\n",
+    "train_time_seconds": 22.58
   },
-  "_best_model": "logistic_regression"
+  "linear_svm_C1": {
+    "precision_fraud_default": 0.9511,
+    "recall_fraud_default": 0.8102,
+    "f1_fraud_default": 0.875,
+    "precision_fraud_optimized": 0.93,
+    "recall_fraud_optimized": 0.8611,
+    "f1_fraud_optimized": 0.8942,
+    "optimal_threshold": 0.3212,
+    "roc_auc": 0.9951,
+    "pr_auc": 0.9555,
+    "accuracy_optimized": 0.9869,
+    "confusion_matrix": [
+      [
+        3132,
+        14
+      ],
+      [
+        30,
+        186
+      ]
+    ],
+    "classification_report": "              precision    recall  f1-score   support\n\n        real       0.99      1.00      0.99      3146\n       fraud       0.93      0.86      0.89       216\n\n    accuracy                           0.99      3362\n   macro avg       0.96      0.93      0.94      3362\nweighted avg       0.99      0.99      0.99      3362\n",
+    "train_time_seconds": 29.67
+  },
+  "logistic_C0.5": {
+    "precision_fraud_default": 0.8139,
+    "recall_fraud_default": 0.8704,
+    "f1_fraud_default": 0.8412,
+    "precision_fraud_optimized": 0.8889,
+    "recall_fraud_optimized": 0.8148,
+    "f1_fraud_optimized": 0.8502,
+    "optimal_threshold": 0.6003,
+    "roc_auc": 0.9904,
+    "pr_auc": 0.918,
+    "accuracy_optimized": 0.9816,
+    "confusion_matrix": [
+      [
+        3124,
+        22
+      ],
+      [
+        40,
+        176
+      ]
+    ],
+    "classification_report": "              precision    recall  f1-score   support\n\n        real       0.99      0.99      0.99      3146\n       fraud       0.89      0.81      0.85       216\n\n    accuracy                           0.98      3362\n   macro avg       0.94      0.90      0.92      3362\nweighted avg       0.98      0.98      0.98      3362\n",
+    "train_time_seconds": 15.25
+  },
+  "logistic_C1": {
+    "precision_fraud_default": 0.8532,
+    "recall_fraud_default": 0.8611,
+    "f1_fraud_default": 0.8571,
+    "precision_fraud_optimized": 0.9086,
+    "recall_fraud_optimized": 0.8287,
+    "f1_fraud_optimized": 0.8668,
+    "optimal_threshold": 0.5838,
+    "roc_auc": 0.9925,
+    "pr_auc": 0.9343,
+    "accuracy_optimized": 0.9836,
+    "confusion_matrix": [
+      [
+        3128,
+        18
+      ],
+      [
+        37,
+        179
+      ]
+    ],
+    "classification_report": "              precision    recall  f1-score   support\n\n        real       0.99      0.99      0.99      3146\n       fraud       0.91      0.83      0.87       216\n\n    accuracy                           0.98      3362\n   macro avg       0.95      0.91      0.93      3362\nweighted avg       0.98      0.98      0.98      3362\n",
+    "train_time_seconds": 11.83
+  },
+  "logistic_C2": {
+    "precision_fraud_default": 0.881,
+    "recall_fraud_default": 0.8565,
+    "f1_fraud_default": 0.8685,
+    "precision_fraud_optimized": 0.9282,
+    "recall_fraud_optimized": 0.838,
+    "f1_fraud_optimized": 0.8808,
+    "optimal_threshold": 0.5786,
+    "roc_auc": 0.9936,
+    "pr_auc": 0.9429,
+    "accuracy_optimized": 0.9854,
+    "confusion_matrix": [
+      [
+        3132,
+        14
+      ],
+      [
+        35,
+        181
+      ]
+    ],
+    "classification_report": "              precision    recall  f1-score   support\n\n        real       0.99      1.00      0.99      3146\n       fraud       0.93      0.84      0.88       216\n\n    accuracy                           0.99      3362\n   macro avg       0.96      0.92      0.94      3362\nweighted avg       0.99      0.99      0.99      3362\n",
+    "train_time_seconds": 16.31
+  },
+  "logistic_C5": {
+    "precision_fraud_default": 0.92,
+    "recall_fraud_default": 0.8519,
+    "f1_fraud_default": 0.8846,
+    "precision_fraud_optimized": 0.9087,
+    "recall_fraud_optimized": 0.875,
+    "f1_fraud_optimized": 0.8915,
+    "optimal_threshold": 0.4112,
+    "roc_auc": 0.9944,
+    "pr_auc": 0.9499,
+    "accuracy_optimized": 0.9863,
+    "confusion_matrix": [
+      [
+        3127,
+        19
+      ],
+      [
+        27,
+        189
+      ]
+    ],
+    "classification_report": "              precision    recall  f1-score   support\n\n        real       0.99      0.99      0.99      3146\n       fraud       0.91      0.88      0.89       216\n\n    accuracy                           0.99      3362\n   macro avg       0.95      0.93      0.94      3362\nweighted avg       0.99      0.99      0.99      3362\n",
+    "train_time_seconds": 18.02
+  },
+  "soft_voting_ensemble": {
+    "precision_fraud_optimized": 0.9602,
+    "recall_fraud_optimized": 0.7824,
+    "f1_fraud_optimized": 0.8622,
+    "optimal_threshold": 0.7408,
+    "roc_auc": 0.9957,
+    "pr_auc": 0.9586,
+    "accuracy_optimized": 0.9839,
+    "confusion_matrix": [
+      [
+        3139,
+        7
+      ],
+      [
+        47,
+        169
+      ]
+    ],
+    "classification_report": "              precision    recall  f1-score   support\n\n        real       0.99      1.00      0.99      3146\n       fraud       0.96      0.78      0.86       216\n\n    accuracy                           0.98      3362\n   macro avg       0.97      0.89      0.93      3362\nweighted avg       0.98      0.98      0.98      3362\n",
+    "train_time_seconds": 48.99
+  },
+  "_best_model": "linear_svm_C1",
+  "_pipeline": "improved_v2",
+  "_baseline": {
+    "model": "LogisticRegression (baseline, word TF-IDF 50k, no threshold tuning)",
+    "precision_fraud": 0.8678,
+    "recall_fraud": 0.8995,
+    "f1_fraud": 0.8834,
+    "roc_auc": null,
+    "pr_auc": null,
+    "accuracy": 0.98
+  },
+  "standalone_evaluation": {
+    "precision_fraud": 0.93,
+    "recall_fraud": 0.8611,
+    "f1_fraud": 0.8942,
+    "roc_auc": 0.9951,
+    "pr_auc": 0.9555,
+    "confusion_matrix": [
+      [
+        3132,
+        14
+      ],
+      [
+        30,
+        186
+      ]
+    ],
+    "classification_report": "              precision    recall  f1-score   support\n\n        real       0.99      1.00      0.99      3146\n       fraud       0.93      0.86      0.89       216\n\n    accuracy                           0.99      3362\n   macro avg       0.96      0.93      0.94      3362\nweighted avg       0.99      0.99      0.99      3362\n"
+  }
 }

@@ -70,6 +70,7 @@ def _recommendation(
     max_severity: str | None = None,
     critical_failure: bool = False,
     hard_gate: bool = False,
+    is_verified_portal: bool = False,
 ) -> Recommendation:
     """Derive a recommendation from risk band, confidence, and severity.
 
@@ -81,6 +82,9 @@ def _recommendation(
     ``hard_gate`` marks a zero-tolerance conversational violation (a chat-network
     redirection of the hiring process).  It likewise forces DON'T APPLY and can
     never be averaged down by the weighted score.
+
+    ``is_verified_portal`` confirms whether the entity matches a verified corporate
+    or trusted job board domain.
     """
     # An absolute infrastructure failure is disqualifying on its own.
     if critical_failure:
@@ -94,16 +98,22 @@ def _recommendation(
     if band in (RiskBand.HIGH, RiskBand.VERY_HIGH) or max_severity == "high":
         return Recommendation.DONT_APPLY
 
-    # Low evidence coverage on low risk -> advise caution (HOLD)
-    if confidence < 0.35 and band == RiskBand.LOW:
-        return Recommendation.HOLD
-
-    if band == RiskBand.LOW:
-        return Recommendation.APPLY
     if band == RiskBand.MODERATE:
         return Recommendation.HOLD
 
+    if band == RiskBand.LOW:
+        # If the employer/portal is positively confirmed via enterprise registry or trusted board,
+        # we can recommend APPLY.
+        if is_verified_portal:
+            return Recommendation.APPLY
+        # Missing/unavailable verification data must not automatically receive a safe score.
+        # Thin evidence coverage without positive verification defaults to HOLD (Caution).
+        if confidence < 0.45:
+            return Recommendation.HOLD
+        return Recommendation.APPLY
+
     return Recommendation.DONT_APPLY
+
 
 
 def compute_confidence(results: Dict[RiskCategory, CategoryResult]) -> float:
@@ -198,6 +208,15 @@ def score_assessment(
     if hard_gate and risk_score < CHAT_REDIRECT_GATE_SCORE_FLOOR:
         risk_score = CHAT_REDIRECT_GATE_SCORE_FLOOR
 
+    is_verified_portal = (
+        not has_high_severity
+        and any(
+            rf.source in ("verified_enterprise_registry", "trusted_portal_registry")
+            and getattr(rf.severity, "value", str(rf.severity)) == "low"
+            for rf in all_risk_factors
+        )
+    )
+
     confidence = compute_confidence(results)
     band = _risk_band(risk_score)
     rec = _recommendation(
@@ -206,6 +225,8 @@ def score_assessment(
         max_severity="high" if has_high_severity else None,
         critical_failure=critical_failure,
         hard_gate=hard_gate,
+        is_verified_portal=is_verified_portal,
     )
 
     return risk_score, band, rec, confidence, category_scores, all_risk_factors
+

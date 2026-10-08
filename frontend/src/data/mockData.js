@@ -594,10 +594,26 @@ export const getScanCounts = (analyses = mockHistoryList) => {
   let verifiedSafe = 0;
 
   list.forEach((item) => {
-    const level = item.riskLevel || (item.score >= 61 ? 'high' : item.score >= 31 ? 'moderate' : 'low');
-    if (level === 'high') {
+    // Priority: explicit verdict > stored riskLevel > numeric score
+    const v = item.verdict || item.recommendation || null;
+
+    let bucket;
+    if (v === "DON'T APPLY" || v === "DONT_APPLY") {
+      bucket = 'high';
+    } else if (v === 'HOLD') {
+      bucket = 'moderate';
+    } else if (v === 'APPLY') {
+      bucket = 'low';
+    } else if (item.riskLevel) {
+      bucket = item.riskLevel;
+    } else {
+      const s = item.score ?? item.riskScore ?? 0;
+      bucket = s >= 60 ? 'high' : s >= 30 ? 'moderate' : 'low';
+    }
+
+    if (bucket === 'high') {
       highRisk++;
-    } else if (level === 'moderate') {
+    } else if (bucket === 'moderate') {
       moderate++;
     } else {
       verifiedSafe++;
@@ -611,4 +627,3 @@ export const getScanCounts = (analyses = mockHistoryList) => {
     verifiedSafe
   };
 };
-

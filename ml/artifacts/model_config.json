@@ -1,0 +1,12 @@
+{
+  "pipeline_version": "improved_v2",
+  "best_model_name": "linear_svm_C1",
+  "optimal_threshold": 0.3212,
+  "word_vocab_size": 100000,
+  "f1_fraud": 0.8942,
+  "precision_fraud": 0.93,
+  "recall_fraud": 0.8611,
+  "roc_auc": 0.9951,
+  "pr_auc": 0.9555,
+  "random_state": 42
+}

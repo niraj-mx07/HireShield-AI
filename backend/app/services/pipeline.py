@@ -147,7 +147,13 @@ async def run_assessment(
         except Exception as exc:  # defensive — fetch_page never raises
             logger.warning("Web retrieval raised unexpectedly: %s", exc)
             page = None
-    page_text = page.text if (page and page.text) else None
+    # Only use retrieved page text for content classification if the request succeeded (< 400)
+    # and has verifiable job posting markers (avoids feeding 404 error page text into ML classifier)
+    page_text = (
+        page.text
+        if (page and page.text and getattr(page, "status_code", 0) and page.status_code < 400 and page.has_job_posting)
+        else None
+    )
 
     results: dict[RiskCategory, CategoryResult] = {}
 
@@ -157,6 +163,9 @@ async def run_assessment(
         message=request.message,
         page_text=page_text,
         document_text=extracted_doc_text,
+        page_attempted=page_attempted,
+        page_extraction=page,
+        url=request.url,
     )
     results[RiskCategory.COMPANY_VERIFICATION] = await company_verification.analyze(
         company_name=request.company_name,
@@ -177,6 +186,8 @@ async def run_assessment(
         url=request.url,
         company_name=request.company_name,
         consent=consent,
+        page_extraction=page,
+        page_attempted=page_attempted,
     )
     results[RiskCategory.FINANCIAL_SCAM] = await financial_signals.analyze(
         description=request.description,

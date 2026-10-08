@@ -48,13 +48,27 @@ export const HistoryPage = () => {
   const historySource = userHistory || [];
   const counts = getScanCounts(historySource);
 
+  // ------------------------------------------------------------------
+  // Classify a single item by verdict (identical to DashboardPage)
+  // ------------------------------------------------------------------
+  const getItemBucket = (item) => {
+    const v = item.verdict || item.recommendation || null;
+    if (v === "DON'T APPLY" || v === "DONT_APPLY") return 'high';
+    if (v === 'HOLD') return 'moderate';
+    if (v === 'APPLY') return 'low';
+    if (item.riskLevel) return item.riskLevel;
+    const s = item.score ?? item.riskScore ?? 0;
+    return s >= 60 ? 'high' : s >= 30 ? 'moderate' : 'low';
+  };
+
   // Filter items by search query and risk level
   const filteredHistory = historySource.filter((item) => {
     const matchesSearch =
-      item.jobTitle.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      item.company.toLowerCase().includes(searchQuery.toLowerCase());
+      (item.jobTitle || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (item.company || '').toLowerCase().includes(searchQuery.toLowerCase());
+    const bucket = getItemBucket(item);
     const matchesFilter =
-      riskFilter === 'all' || item.riskLevel === riskFilter;
+      riskFilter === 'all' || bucket === riskFilter;
     return matchesSearch && matchesFilter;
   });
 
@@ -172,9 +186,15 @@ export const HistoryPage = () => {
               </thead>
               <tbody className="divide-y divide-ink/5 text-xs font-medium text-ink">
                 {filteredHistory.map((item) => {
-                  const isHigh = item.riskLevel === 'high';
-                  const isMod = item.riskLevel === 'moderate';
-                  const badgeBg = isHigh ? 'bg-risk-high-bg text-risk-high' : isMod ? 'bg-risk-moderate-bg text-risk-moderate' : 'bg-risk-low-bg text-risk-low';
+                  const bucket = getItemBucket(item);
+                  const isHigh = bucket === 'high';
+                  const isMod = bucket === 'moderate';
+                  const badgeBg = isHigh
+                    ? 'bg-risk-high-bg text-risk-high'
+                    : isMod
+                      ? 'bg-risk-moderate-bg text-risk-moderate'
+                      : 'bg-risk-low-bg text-risk-low';
+                  const verdictLabel = item.verdict || (isHigh ? "DON'T APPLY" : isMod ? 'HOLD' : 'APPLY');
 
                   return (
                     <tr
@@ -186,14 +206,16 @@ export const HistoryPage = () => {
                         {item.jobTitle}
                       </td>
                       <td className="py-4 px-6 text-ink-muted">{item.company}</td>
-                      <td className="py-4 px-6 text-ink-subtle">{item.date}</td>
+                      <td className="py-4 px-6 text-ink-subtle">{item.scanDate}</td>
                       <td className="py-4 px-6">
                         <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold ${badgeBg}`}>
-                          {item.riskScore} / 100
+                          {item.score ?? item.riskScore ?? '–'} / 100
                         </span>
                       </td>
                       <td className="py-4 px-6">
-                        <span className="font-semibold text-[11px]">{item.recommendation}</span>
+                        <span className={`font-bold text-[11px] ${isHigh ? 'text-risk-high' : isMod ? 'text-risk-moderate' : 'text-risk-low'}`}>
+                          {verdictLabel}
+                        </span>
                       </td>
                       <td className="py-4 px-6 text-right">
                         <span className="inline-flex items-center gap-1 text-primary text-xs font-semibold group-hover:underline">

@@ -10,6 +10,7 @@ import logging
 import re
 from urllib.parse import urlparse
 
+from app.analyzers.url_analysis import is_payment_gateway_url
 from app.models.schemas import (
     CategoryResult,
     RiskCategory,
@@ -213,8 +214,35 @@ async def analyze(
         except Exception:
             pass
 
-    # 1. Company is a recognized enterprise
-    if matched_entry:
+    is_payment = False
+    payment_reason = ""
+    if has_url:
+        is_payment, payment_reason = is_payment_gateway_url(url)
+
+    # If company name was not provided, match enterprise from url_domain (unless it is a payment link)
+    if not matched_entry and url_domain and not is_payment:
+        for key, data in VERIFIED_COMPANIES.items():
+            if any(url_domain == od or url_domain.endswith(f".{od}") for od in data["domains"]):
+                matched_entry = data
+                break
+
+    # 1. Company is a recognized enterprise vs Payment link
+    if is_payment:
+        base_score += 65.0
+        risk_factors.append(
+            RiskFactor(
+                category=RiskCategory.COMPANY_VERIFICATION,
+                severity=Severity.HIGH,
+                description="URL points to a payment gateway or checkout page, not a corporate career site.",
+                evidence=(
+                    f"Listing URL '{url_domain}' is a payment transaction endpoint ({payment_reason}). "
+                    "Hosting on a payment platform does not prove the opportunity is authentic."
+                ),
+                source="company_domain_discrepancy_scanner",
+                confidence=0.95,
+            )
+        )
+    elif matched_entry:
         official_domains = matched_entry["domains"]
         full_name = matched_entry["name"]
 
@@ -303,20 +331,49 @@ async def analyze(
                 page = page_extraction  # already fetched by the pipeline
             else:
                 page = await web_retrieval.fetch_page(url)
-            if page is None:
-                base_score += 10.0
+            if page is not None and getattr(page, "status_code", 0) in (404, 410):
+                base_score += 55.0
+                risk_factors.append(
+                    RiskFactor(
+                        category=RiskCategory.COMPANY_VERIFICATION,
+                        severity=Severity.HIGH,
+                        description="Listing URL returned HTTP 404 (Not Found); opportunity does not exist.",
+                        evidence=(
+                            f"Listing URL '{page.final_url or url_domain}' returned HTTP {page.status_code} Client Error. "
+                            "The claimed job or internship does not exist on this domain."
+                        ),
+                        source="live_careers_page_verifier",
+                        confidence=0.94,
+                    )
+                )
+            elif page is not None and getattr(page, "status_code", 0) >= 400:
+                # Verification failure (anti-bot protection, rate limit 429, or 50x server error) — NOT fraud evidence
+                risk_factors.append(
+                    RiskFactor(
+                        category=RiskCategory.COMPANY_VERIFICATION,
+                        severity=Severity.LOW,
+                        description=f"Live page inspection restricted (HTTP {page.status_code}).",
+                        evidence=f"Listing URL '{page.final_url or url_domain}' returned HTTP {page.status_code} (anti-bot header or server restriction). Inspection relied on domain verification.",
+                        source="live_careers_page_verifier",
+                        confidence=0.40,
+                    )
+                )
+            elif page is None:
+                # Verification inconclusive (connection timeout, DNS failure, or unreachable host).
+                # Rated MEDIUM because we cannot confirm the listing exists — not fraud evidence,
+                # but also not a clean pass.
                 risk_factors.append(
                     RiskFactor(
                         category=RiskCategory.COMPANY_VERIFICATION,
                         severity=Severity.MEDIUM,
-                        description="Live listing page could not be retrieved for verification.",
+                        description="Live listing page could not be fetched — verification inconclusive.",
                         evidence=(
-                            f"The listing URL '{url_domain}' did not return a retrievable "
-                            "job page (unreachable, non-HTML, or blocked). Unable to "
-                            "independently confirm the posting exists."
+                            f"The listing URL '{url_domain}' was unreachable or timed out during "
+                            "live inspection. The existence of the job posting cannot be independently "
+                            "confirmed. Proceed with additional due diligence before applying."
                         ),
                         source="live_careers_page_verifier",
-                        confidence=0.50,
+                        confidence=0.45,
                     )
                 )
             elif page.payment_terms:
@@ -350,6 +407,19 @@ async def analyze(
                         ),
                         source="live_careers_page_verifier",
                         confidence=0.85,
+                    )
+                )
+            elif matched_entry and not is_payment and any(url_domain == od or url_domain.endswith(f".{od}") for od in matched_entry["domains"]):
+                # Verified official corporate careers portal (e.g. careers.microsoft.com)
+                # Reachable with HTTP 200 and no payment terms.
+                risk_factors.append(
+                    RiskFactor(
+                        category=RiskCategory.COMPANY_VERIFICATION,
+                        severity=Severity.LOW,
+                        description=f"Verified official corporate career portal for {matched_entry['name']}.",
+                        evidence=f"Retrieved '{page.final_url or url_domain}' (HTTP {page.status_code}) on verified domain.",
+                        source="live_careers_page_verifier",
+                        confidence=0.90,
                     )
                 )
             else:

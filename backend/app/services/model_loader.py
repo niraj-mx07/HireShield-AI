@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
+import sys
 from typing import Any, Optional, Tuple
 
 import joblib
@@ -67,6 +68,11 @@ def load_job_content_model() -> Tuple[Any | None, Any | None]:
         return None, None
 
     try:
+        # Ensure repository root is on sys.path so joblib can deserialize ml.* wrappers
+        repo_root = _find_artifacts_dir().parent.parent
+        if str(repo_root) not in sys.path:
+            sys.path.insert(0, str(repo_root))
+
         logger.info("Loading job content ML artifacts from %s ...", artifacts_dir)
         _vectorizer = joblib.load(vec_path)
         _model = joblib.load(model_path)
