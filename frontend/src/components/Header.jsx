@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { ShieldCheck, Menu, X, User, LogOut, Sparkles, ChevronDown, CheckCircle2 } from 'lucide-react';
+import { ShieldCheck, Menu, X, User, LogOut, ChevronDown, CheckCircle2 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
 export const Header = () => {
@@ -126,21 +126,12 @@ export const Header = () => {
               </button>
               <button
                 onClick={() => openAuthModal('signup')}
-                className="px-4 py-2 rounded-full bg-surface-2 border border-ink/10 text-xs font-semibold text-ink hover:bg-surface hover:border-primary/30 transition-all"
+                className="px-4 py-2 rounded-full bg-primary text-surface text-xs font-semibold hover:bg-primary-container shadow-subtle transition-all"
               >
                 Sign Up
               </button>
             </div>
           )}
-
-          {/* Primary Action Button */}
-          <Link
-            to="/analyze"
-            className="px-5 py-2.5 rounded-full bg-primary text-surface text-xs font-semibold shadow-subtle hover:bg-primary-container transition-all flex items-center gap-1.5"
-          >
-            <Sparkles className="w-3.5 h-3.5" />
-            <span>Check Offer Now</span>
-          </Link>
         </div>
 
         {/* Mobile Hamburger Button (< lg) */}
@@ -218,13 +209,6 @@ export const Header = () => {
                 </button>
               </div>
             )}
-
-            <button
-              onClick={() => handleNavClick('/analyze')}
-              className="w-full py-3 rounded-full bg-primary text-surface text-xs font-semibold text-center shadow-subtle"
-            >
-              Check Job Offer Now
-            </button>
           </div>
         </div>
       )}

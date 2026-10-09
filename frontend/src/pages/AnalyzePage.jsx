@@ -30,55 +30,6 @@ export const AnalyzePage = () => {
   const [validationError, setValidationError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Preset Loaders for quick demo (populates both Link & Description together!)
-  const loadPresetScam = () => {
-    setUrlInput('https://apex-global-careers-hire.net/jobs/entry-data-spec');
-    setDescInput('We are looking for an Entry-Level Remote Data Specialist. $65/hr. High payout. Mandatory requirement: Candidates must accept a $2,000 cashier check reimbursement to purchase Apple hardware from our designated portal.');
-    setFileName('Apex_Global_Offer_Letter.pdf');
-    setCompanyName('Apex Global Careers');
-    setRecruiterEmail('recruitment@apex-global-hr.net');
-    setRecruiterName('Sarah Jenkins');
-    setRecruiterPhone('');
-    setMessageInput('Hello! Your application for Data Entry Specialist has been approved. Please message our hiring manager on Telegram @apex_hr_dept immediately to claim your $2,000 equipment check.');
-    setValidationError('');
-  };
-
-  const loadPresetIndiaScam = () => {
-    setUrlInput('https://excel-careers-india.in/jobs/accounts-assistant');
-    setDescInput('Accounts Assistant Job Openings in Mumbai | ₹25,000/month Salary | Placement Guarantee. Join our Placement Consultant today and get placed in top MNCs. Our consultancy charges are ₹5,000 refundable security deposit only.');
-    setFileName('Excel_Placement_Agreement.pdf');
-    setCompanyName('Excel Career Solutions');
-    setRecruiterEmail('placementfee@gmail.com');
-    setRecruiterName('Rajesh Kumar (WhatsApp Consultant)');
-    setRecruiterPhone('+91 9812345678');
-    setMessageInput('Congratulations! Selected for MNC Accounts role. Pay ₹5,000 refundable security deposit via UPI/GPay to confirm slot. Contact WhatsApp: +91 9812345678.');
-    setValidationError('');
-  };
-
-  const loadPresetTelegramScam = () => {
-    setUrlInput('https://global-fast-remote-jobs.site/apply');
-    setDescInput('Remote Crypto Portfolio & Task Specialist. Guaranteed $1,500 weekly payout + free MacBook Pro shipped immediately. Complete daily simple tasks and earn commission.');
-    setFileName('Contract_Bond_Agreement.pdf');
-    setCompanyName('Global Fast Remote Jobs');
-    setRecruiterEmail('hr@global-fast-remote-jobs.site');
-    setRecruiterName('Alex Vance (@fast_crypto_jobs)');
-    setRecruiterPhone('');
-    setMessageInput('Hi! To activate your daily $1,500 crypto task bot, connect with our supervisor on Telegram @fast_crypto_jobs.');
-    setValidationError('');
-  };
-
-  const loadPresetSafe = () => {
-    setUrlInput('https://stripe.com/jobs/listing/software-engineer-intern');
-    setDescInput('Stripe is hiring Software Engineer Interns for Summer 2026. You will build payment infrastructure with Ruby, Go, and React. $55/hr + housing stipend. Official university recruiting program.');
-    setFileName('Stripe_Internship_Offer_2026.pdf');
-    setCompanyName('Stripe');
-    setRecruiterEmail('university-hiring@stripe.com');
-    setRecruiterName('Elena Rostova');
-    setRecruiterPhone('');
-    setMessageInput('Hi Nihar, Thank you for interviewing with Stripe. We are thrilled to offer you a Software Engineer Internship position for Summer 2026!');
-    setValidationError('');
-  };
-
   const handleFileChange = (e) => {
     const file = e.target.files?.[0];
     if (file) {
@@ -206,44 +157,6 @@ export const AnalyzePage = () => {
         <p className="text-sm text-ink-muted max-w-xl mx-auto">
           You can provide a <strong>Job URL</strong>, paste <strong>Job Description</strong> text, or <strong>both together</strong>. You can also attach offer letters or recruiter messages for deeper verification.
         </p>
-      </div>
-
-      {/* Preset Demo Buttons */}
-      <div className="bg-surface-2 p-4 rounded-2xl border border-ink/5 flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-2 text-xs font-semibold text-ink-muted">
-          <Sparkles className="w-4 h-4 text-primary" />
-          <span>1-Click Test Presets:</span>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <button
-            type="button"
-            onClick={loadPresetScam}
-            className="px-3.5 py-1.5 rounded-full bg-risk-high-bg text-risk-high text-xs font-semibold hover:bg-risk-high-bg/80 transition-all flex items-center gap-1.5"
-          >
-            <span>⚡ Check Reimbursement Scam</span>
-          </button>
-          <button
-            type="button"
-            onClick={loadPresetIndiaScam}
-            className="px-3.5 py-1.5 rounded-full bg-amber-500/10 text-amber-700 dark:text-amber-400 text-xs font-semibold hover:bg-amber-500/20 transition-all flex items-center gap-1.5"
-          >
-            <span>⚡ ₹5,000 Placement Deposit Scam</span>
-          </button>
-          <button
-            type="button"
-            onClick={loadPresetTelegramScam}
-            className="px-3.5 py-1.5 rounded-full bg-purple-500/10 text-purple-700 dark:text-purple-400 text-xs font-semibold hover:bg-purple-500/20 transition-all flex items-center gap-1.5"
-          >
-            <span>⚡ Telegram Crypto Task Scam</span>
-          </button>
-          <button
-            type="button"
-            onClick={loadPresetSafe}
-            className="px-3.5 py-1.5 rounded-full bg-risk-low-bg text-risk-low text-xs font-semibold hover:bg-risk-low-bg/80 transition-all flex items-center gap-1.5"
-          >
-            <span>⚡ Verified Safe Enterprise</span>
-          </button>
-        </div>
       </div>
 
       {/* Main Analysis Card */}

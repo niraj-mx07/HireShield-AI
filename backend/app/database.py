@@ -22,7 +22,21 @@ async def connect() -> None:
     """
     global _client, _database
     settings = get_settings()
-    _client = AsyncIOMotorClient(settings.database_url)
+    import certifi
+
+    client_kwargs = {
+        "serverSelectionTimeoutMS": 5000,
+        "connectTimeoutMS": 5000,
+        "socketTimeoutMS": 5000,
+    }
+    # Enable certifi CA bundle for Atlas SRV / TLS connections on Windows
+    if "mongodb+srv" in settings.database_url or "ssl=true" in settings.database_url.lower() or "tls=true" in settings.database_url.lower():
+        client_kwargs["tlsCAFile"] = certifi.where()
+
+    _client = AsyncIOMotorClient(
+        settings.database_url,
+        **client_kwargs,
+    )
     _database = _client[settings.database_name]
 
 

@@ -100,7 +100,7 @@ async def _check_domain_dns_resolution(domain: str) -> bool:
     """Verify live DNS host resolution (A records) via Cloudflare/Google DoH."""
     url_cf = f"https://cloudflare-dns.com/dns-query?name={domain}&type=A"
     try:
-        async with httpx.AsyncClient(timeout=2.0) as client:
+        async with httpx.AsyncClient(timeout=0.8) as client:
             resp = await client.get(url_cf, headers={"accept": "application/dns-json"})
             if resp.status_code == 200:
                 answers = resp.json().get("Answer", [])
@@ -112,7 +112,7 @@ async def _check_domain_dns_resolution(domain: str) -> bool:
     # Google DoH fallback
     url_gg = f"https://dns.google/resolve?name={domain}&type=A"
     try:
-        async with httpx.AsyncClient(timeout=2.0) as client:
+        async with httpx.AsyncClient(timeout=0.8) as client:
             resp = await client.get(url_gg)
             if resp.status_code == 200:
                 answers = resp.json().get("Answer", [])
@@ -137,7 +137,7 @@ async def _check_domain_rdap(domain: str) -> dict | None:
 
     url = f"https://rdap.org/domain/{root_domain}"
     try:
-        async with httpx.AsyncClient(timeout=2.5, follow_redirects=True) as client:
+        async with httpx.AsyncClient(timeout=1.2, follow_redirects=True) as client:
             resp = await client.get(url, headers={"Accept": "application/rdap+json, application/json"})
             if resp.status_code == 200:
                 data = resp.json()
@@ -196,15 +196,15 @@ async def analyze(
 
     # 1. Scheme check: Insecure HTTP
     if scheme == "http":
-        base_score += 35.0
+        base_score += 25.0
         risk_factors.append(
             RiskFactor(
                 category=RiskCategory.URL_WEBSITE,
-                severity=Severity.HIGH,
+                severity=Severity.MEDIUM,
                 description="Unencrypted HTTP protocol detected instead of secure HTTPS.",
-                evidence=f"The job listing URL '{cleaned_url}' transmits data over insecure plaintext HTTP.",
+                evidence=f"The job listing URL '{cleaned_url}' transmits data over unencrypted plaintext HTTP.",
                 source="url_protocol_checker",
-                confidence=0.95,
+                confidence=0.90,
             )
         )
 

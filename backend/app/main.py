@@ -8,6 +8,7 @@ Run locally with::
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from contextlib import asynccontextmanager
 
@@ -39,16 +40,16 @@ async def lifespan(app: FastAPI):
     """Manage application lifecycle: connect to MongoDB and load models on startup."""
     logger.info("Connecting to MongoDB at %s ...", settings.database_url)
     await connect()
-    logger.info("MongoDB connected -- database: %s", settings.database_name)
     try:
         from app.database import get_database
         db = get_database()
+        await asyncio.wait_for(db.command("ping"), timeout=3.0)
         await db.users.create_index("email", unique=True)
         await db.user_history.create_index([("user_email", 1), ("created_at", -1)])
         await db.user_history.create_index("id")
-        logger.info("MongoDB collections and indexes initialized (users, user_history).")
+        logger.info("MongoDB Atlas / cluster connected and indexes initialized (users, user_history).")
     except Exception as exc:
-        logger.warning("MongoDB index initialization skipped: %s", exc)
+        logger.warning("MongoDB ping failed or cluster unreachable: %s", exc)
     load_job_content_model()
     yield
     logger.info("Shutting down — closing MongoDB connection …")

@@ -43,7 +43,7 @@ async def _check_domain_mx(domain: str) -> list[str]:
     # Try 1: Cloudflare DoH
     url_cf = f"https://cloudflare-dns.com/dns-query?name={domain}&type=MX"
     try:
-        async with httpx.AsyncClient(timeout=2.5) as client:
+        async with httpx.AsyncClient(timeout=0.8) as client:
             resp = await client.get(url_cf, headers={"accept": "application/dns-json"})
             if resp.status_code == 200:
                 data = resp.json()
@@ -57,7 +57,7 @@ async def _check_domain_mx(domain: str) -> list[str]:
     # Try 2: Google DoH Fallback
     url_gg = f"https://dns.google/resolve?name={domain}&type=MX"
     try:
-        async with httpx.AsyncClient(timeout=2.5) as client:
+        async with httpx.AsyncClient(timeout=0.8) as client:
             resp = await client.get(url_gg)
             if resp.status_code == 200:
                 data = resp.json()
@@ -73,7 +73,7 @@ async def _check_domain_dmarc_spf(domain: str) -> dict[str, bool]:
     """Query DNS TXT records to verify DMARC and SPF anti-spoofing policy."""
     results = {"has_spf": False, "has_dmarc": False}
     try:
-        async with httpx.AsyncClient(timeout=2.5) as client:
+        async with httpx.AsyncClient(timeout=0.8) as client:
             # Check SPF
             resp = await client.get(f"https://cloudflare-dns.com/dns-query?name={domain}&type=TXT", headers={"accept": "application/dns-json"})
             if resp.status_code == 200:

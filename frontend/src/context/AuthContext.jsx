@@ -381,6 +381,16 @@ export const AuthProvider = ({ children }) => {
     setUser(authUser);
     setIsAuthModalOpen(false);
 
+    // Save any pending active report from this session to MongoDB
+    if (activeReport && (activeReport.title || activeReport.company)) {
+      try {
+        const item = reportToHistoryItem(activeReport);
+        apiSaveUserHistory(enteredEmail, [item]).catch((e) => console.warn(e));
+      } catch (e) {
+        console.warn('Could not format active report for MongoDB save:', e);
+      }
+    }
+
     // Sync history from MongoDB
     syncWithMongoDB(authUser);
 

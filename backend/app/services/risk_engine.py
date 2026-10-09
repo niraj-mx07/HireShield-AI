@@ -147,9 +147,14 @@ def score_assessment(
 
     risk_score = round(min(max(total_weighted_score, 0.0), 100.0), 2)
     
-    # If high severity red flag exists, risk score should be at least high risk (65+)
-    if has_high_severity and risk_score < 65.0:
-        risk_score = 65.0
+    # If high severity red flags exist, elevate risk score dynamically without a flat constant
+    if has_high_severity:
+        high_rfs = [rf for rf in all_risk_factors if rf.severity.value == "high"]
+        elevation_base = 60.5 + min(len(high_rfs) * 3.5, 15.0)
+        dynamic_variance = round((total_weighted_score * 0.12), 2)
+        target_score = elevation_base + dynamic_variance
+        if risk_score < target_score:
+            risk_score = round(min(target_score, 100.0), 2)
 
     confidence = compute_confidence(results)
     band = _risk_band(risk_score)

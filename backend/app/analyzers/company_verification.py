@@ -263,17 +263,31 @@ async def analyze(
     else:
         # Unrecognized company
         if has_cmp:
-            base_score = 35.0
-            risk_factors.append(
-                RiskFactor(
-                    category=RiskCategory.COMPANY_VERIFICATION,
-                    severity=Severity.MEDIUM,
-                    description=f"Company '{company_name}' could not be matched against verified enterprise registry.",
-                    evidence="No verified digital corporate footprint found in primary directory. Proceed with standard due diligence.",
-                    source="public_business_registry",
-                    confidence=0.60,
+            from app.analyzers.job_content import is_gibberish_text
+            if is_gibberish_text(company_name):
+                base_score = 52.0
+                risk_factors.append(
+                    RiskFactor(
+                        category=RiskCategory.COMPANY_VERIFICATION,
+                        severity=Severity.MEDIUM,
+                        description=f"Company name appears to be random or invalid text ('{company_name}').",
+                        evidence="Provided company name contains unparseable character sequences with no authentic business registration records.",
+                        source="company_identity_validator",
+                        confidence=0.80,
+                    )
                 )
-            )
+            else:
+                base_score = 35.0
+                risk_factors.append(
+                    RiskFactor(
+                        category=RiskCategory.COMPANY_VERIFICATION,
+                        severity=Severity.MEDIUM,
+                        description=f"Company '{company_name}' could not be matched against verified enterprise registry.",
+                        evidence="No verified digital corporate footprint found in primary directory. Proceed with standard due diligence.",
+                        source="public_business_registry",
+                        confidence=0.60,
+                    )
+                )
 
     final_score = round(min(max(base_score, 0.0), 100.0), 2)
     return CategoryResult(score=final_score, risk_factors=risk_factors, analyzed=True)

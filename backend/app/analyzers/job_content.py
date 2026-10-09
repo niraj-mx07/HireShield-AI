@@ -11,6 +11,7 @@ and confidence scores without asserting fraud as fact.
 from __future__ import annotations
 
 import logging
+import re
 
 from app.models.schemas import (
     CategoryResult,
@@ -21,6 +22,34 @@ from app.models.schemas import (
 from app.services.model_loader import get_job_content_model
 
 logger = logging.getLogger(__name__)
+
+
+def is_gibberish_text(text: str) -> bool:
+    """Detect unparseable keyboard mashing, low vowel ratios, or nonsensical strings."""
+    if not text or not text.strip():
+        return False
+    clean = re.sub(r"[^a-zA-Z\s]", "", text.strip())
+    if not clean:
+        return True
+    words = clean.split()
+    if not words:
+        return True
+
+    KEYBOARD_MASH_SUBSTRINGS = ("asdf", "qwerty", "zxcv", "hjkl", "qwer", "dfgh")
+    for w in words:
+        w_lower = w.lower()
+        if any(km in w_lower for km in KEYBOARD_MASH_SUBSTRINGS) and len(w_lower) >= 4:
+            return True
+        if len(w_lower) >= 4:
+            vowels = sum(1 for c in w_lower if c in "aeiouy")
+            vowel_ratio = vowels / len(w_lower)
+            if vowel_ratio < 0.15 or vowel_ratio > 0.85:
+                return True
+            if re.search(r"[^aeiouy]{5,}", w_lower):
+                return True
+            if re.search(r"(.)\1{2,}", w_lower):
+                return True
+    return False
 
 
 async def analyze(
@@ -71,6 +100,28 @@ async def analyze(
 
         # Normalise to 0–100 risk score
         score = round(min(max(fraud_prob * 100.0, 0.0), 100.0), 2)
+
+        # Calibrate for gibberish, sparse, or placeholder inputs
+        words = combined_text.split()
+        SCAM_OR_JOB_KEYWORDS = (
+            "fee", "deposit", "payment", "pay", "charge", "refund", "laptop", "equipment",
+            "wire", "check", "cheque", "crypto", "telegram", "whatsapp", "gatepass", "task",
+            "recharge", "daily", "urgent", "hiring", "bonus", "investment", "guaranteed",
+            "responsibilities", "requirements", "qualifications", "experience", "skills",
+            "bachelor", "degree", "interview", "engineer", "developer", "manager", "intern"
+        )
+        has_context_keywords = any(kw in combined_text.lower() for kw in SCAM_OR_JOB_KEYWORDS)
+        is_gibberish = is_gibberish_text(combined_text)
+        is_sparse = len(words) < 12 and not has_context_keywords
+
+        if is_gibberish:
+            # Unparseable/gibberish input lacks coherent job semantics -> elevate to moderate risk
+            fraud_prob = 0.52
+            score = 52.0
+        elif is_sparse:
+            # Short generic strings lacking scam keywords
+            fraud_prob = min(fraud_prob, 0.25 + (len(words) * 0.015))
+            score = round(fraud_prob * 100.0, 2)
     except Exception as exc:
         logger.error("Error during job content model inference: %s", exc, exc_info=True)
         return CategoryResult(score=0.0, risk_factors=[], analyzed=False)
@@ -103,7 +154,35 @@ async def analyze(
     risk_factors: list[RiskFactor] = []
     phrases_snippet = f" (Key signals: {', '.join([repr(p) for p in detected_phrases])})" if detected_phrases else ""
 
-    if score >= 70.0:
+    if is_gibberish:
+        risk_factors.append(
+            RiskFactor(
+                category=RiskCategory.JOB_CONTENT,
+                severity=Severity.MEDIUM,
+                description="Unverifiable or nonsensical text detected.",
+                evidence=(
+                    f"Provided text contains unparseable character sequences ('{combined_text[:40]}...') "
+                    "with no coherent natural language or enterprise job description terms. Cannot verify legitimacy."
+                ),
+                source="linguistic_coherence_evaluator",
+                confidence=0.75,
+            )
+        )
+    elif is_sparse:
+        risk_factors.append(
+            RiskFactor(
+                category=RiskCategory.JOB_CONTENT,
+                severity=Severity.LOW,
+                description="Brief or informal description provided.",
+                evidence=(
+                    f"Provided text contains only {len(words)} words with no established corporate job posting structure. "
+                    "Provide a detailed job description or offer letter for comprehensive NLP evaluation."
+                ),
+                source="content_sufficiency_evaluator",
+                confidence=0.45,
+            )
+        )
+    elif score >= 70.0:
         risk_factors.append(
             RiskFactor(
                 category=RiskCategory.JOB_CONTENT,

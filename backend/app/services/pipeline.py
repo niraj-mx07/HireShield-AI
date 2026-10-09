@@ -10,6 +10,7 @@ Coordinates the full analysis flow:
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import uuid
 from datetime import datetime, timezone
@@ -97,59 +98,77 @@ async def run_assessment(
             user_id=request.user_id,
             user_email=request.user_email.strip().lower() if request.user_email else None,
         )
-        await db.assessments.insert_one(record.model_dump())
+        await asyncio.wait_for(db.assessments.insert_one(record.model_dump()), timeout=4.0)
     except Exception as exc:
-        logger.warning("Database write failed for pending assessment %s: %s", assessment_id, exc)
+        logger.warning("Database write skipped/timed out for pending assessment %s: %s", assessment_id, exc)
 
     # ------------------------------------------------------------------
-    # 2. Extract Document Text (if any) and Run All Analyzers
+    # 2. Extract Document Text (if any) and Run All Analyzers in Parallel
     # ------------------------------------------------------------------
     from app.analyzers.document_analysis import extract_document_text
     extracted_doc_text = extract_document_text(document_bytes, document_filename)
 
-    results: dict[RiskCategory, CategoryResult] = {}
+    (
+        job_res,
+        comp_res,
+        rec_res,
+        url_res,
+        fin_res,
+        doc_res,
+        cons_res,
+    ) = await asyncio.gather(
+        job_content.analyze(
+            description=request.description,
+            company_name=request.company_name,
+            message=request.message,
+        ),
+        company_verification.analyze(
+            company_name=request.company_name,
+            url=request.url,
+            consent=consent,
+        ),
+        recruiter_verification.analyze(
+            recruiter_email=request.recruiter_email,
+            recruiter_name=request.recruiter_name,
+            recruiter_phone=request.recruiter_phone,
+            company_name=request.company_name,
+            message=request.message,
+            consent=consent,
+        ),
+        url_analysis.analyze(
+            url=request.url,
+            company_name=request.company_name,
+            consent=consent,
+        ),
+        financial_signals.analyze(
+            description=request.description,
+            message=request.message,
+            document_text=extracted_doc_text,
+        ),
+        document_analysis.analyze(
+            document_bytes=document_bytes,
+            document_filename=document_filename,
+            document_text=extracted_doc_text,
+        ),
+        consistency_check.analyze(
+            description=request.description,
+            url=request.url,
+            company_name=request.company_name,
+            recruiter_email=request.recruiter_email,
+            message=request.message,
+            document_text=extracted_doc_text,
+        ),
+    )
 
-    results[RiskCategory.JOB_CONTENT] = await job_content.analyze(
-        description=request.description,
-        company_name=request.company_name,
-        message=request.message,
-    )
-    results[RiskCategory.COMPANY_VERIFICATION] = await company_verification.analyze(
-        company_name=request.company_name,
-        url=request.url,
-        consent=consent,
-    )
-    results[RiskCategory.RECRUITER_VERIFICATION] = await recruiter_verification.analyze(
-        recruiter_email=request.recruiter_email,
-        recruiter_name=request.recruiter_name,
-        recruiter_phone=request.recruiter_phone,
-        company_name=request.company_name,
-        message=request.message,
-        consent=consent,
-    )
-    results[RiskCategory.URL_WEBSITE] = await url_analysis.analyze(
-        url=request.url,
-        company_name=request.company_name,
-        consent=consent,
-    )
-    results[RiskCategory.FINANCIAL_SCAM] = await financial_signals.analyze(
-        description=request.description,
-        message=request.message,
-        document_text=extracted_doc_text,
-    )
-    results[RiskCategory.DOCUMENT_ANALYSIS] = await document_analysis.analyze(
-        document_bytes=document_bytes,
-        document_filename=document_filename,
-        document_text=extracted_doc_text,
-    )
-    results[RiskCategory.INFORMATION_CONSISTENCY] = await consistency_check.analyze(
-        description=request.description,
-        url=request.url,
-        company_name=request.company_name,
-        recruiter_email=request.recruiter_email,
-        message=request.message,
-        document_text=extracted_doc_text,
-    )
+    results: dict[RiskCategory, CategoryResult] = {
+        RiskCategory.JOB_CONTENT: job_res,
+        RiskCategory.COMPANY_VERIFICATION: comp_res,
+        RiskCategory.RECRUITER_VERIFICATION: rec_res,
+        RiskCategory.URL_WEBSITE: url_res,
+        RiskCategory.FINANCIAL_SCAM: fin_res,
+        RiskCategory.DOCUMENT_ANALYSIS: doc_res,
+        RiskCategory.INFORMATION_CONSISTENCY: cons_res,
+    }
 
     # ------------------------------------------------------------------
     # 2b. Cross-reference community scam blacklist
@@ -232,7 +251,7 @@ async def run_assessment(
     if db is not None:
         try:
             clean_email = request.user_email.strip().lower() if request.user_email else None
-            await db.assessments.update_one(
+            update_coro = db.assessments.update_one(
                 {"id": assessment_id},
                 {"$set": {
                     "status": AssessmentStatus.COMPLETED.value,
@@ -248,6 +267,7 @@ async def run_assessment(
                     "user_email": clean_email,
                 }},
             )
+            await asyncio.wait_for(update_coro, timeout=4.0)
             if clean_email:
                 clean_company = request.company_name.strip() if request.company_name else "Hiring Entity"
                 job_title = f"{clean_company} Opportunity"
@@ -276,13 +296,14 @@ async def run_assessment(
                     "created_at": now.isoformat(),
                     "updated_at": now.isoformat(),
                 }
-                await db.user_history.update_one(
+                hist_coro = db.user_history.update_one(
                     {"id": history_id, "user_email": clean_email},
                     {"$set": hist_item},
                     upsert=True,
                 )
+                await asyncio.wait_for(hist_coro, timeout=4.0)
         except Exception as exc:
-            logger.warning("Database update failed for completed assessment %s: %s", assessment_id, exc)
+            logger.warning("Database update skipped or timed out for assessment %s: %s", assessment_id, exc)
 
     logger.info(
         "Assessment %s completed — score=%.1f band=%s rec=%s confidence=%.2f inputs=%s",

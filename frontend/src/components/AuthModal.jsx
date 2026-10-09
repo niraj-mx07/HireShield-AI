@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X, ShieldCheck, Mail, Lock, User, ArrowRight, Sparkles, CheckCircle2, FileText, History, BarChart3, Loader2 } from 'lucide-react';
+import { X, ShieldCheck, Mail, Lock, User, ArrowRight, CheckCircle2, FileText, History, BarChart3, Loader2 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
 export const AuthModal = () => {
@@ -44,15 +44,6 @@ export const AuthModal = () => {
       }
     } catch (err) {
       setError(err?.message || 'Authentication error. Please try again.');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleDemoLogin = async () => {
-    setLoading(true);
-    try {
-      await login('nihar.patil@student.edu', 'demo123', 'Nihar Patil');
     } finally {
       setLoading(false);
     }
@@ -197,45 +188,48 @@ export const AuthModal = () => {
             </button>
           </form>
 
-          {/* Quick 1-Click Demo Login */}
-          <div className="relative pt-2">
-            <div className="absolute inset-0 flex items-center">
-              <div className="w-full border-t border-ink/10" />
-            </div>
-            <div className="relative flex justify-center text-[10px] uppercase">
-              <span className="bg-surface px-2 text-ink-subtle font-medium">Or Quick Instant Access</span>
-            </div>
+          {/* Mode Switch Text Prompt */}
+          <div className="text-center pt-1">
+            {mode === 'login' ? (
+              <p className="text-xs text-ink-muted">
+                Don't have an account?{' '}
+                <button
+                  type="button"
+                  onClick={() => { setMode('signup'); setError(''); }}
+                  className="font-semibold text-primary hover:underline ml-1"
+                >
+                  Create one for free
+                </button>
+              </p>
+            ) : (
+              <p className="text-xs text-ink-muted">
+                Already have an account?{' '}
+                <button
+                  type="button"
+                  onClick={() => { setMode('login'); setError(''); }}
+                  className="font-semibold text-primary hover:underline ml-1"
+                >
+                  Sign in
+                </button>
+              </p>
+            )}
           </div>
 
-          <button
-            type="button"
-            disabled={loading}
-            onClick={handleDemoLogin}
-            className="w-full py-2.5 rounded-xl bg-surface-2 border border-ink/10 text-xs font-semibold text-ink hover:bg-surface-2/80 transition-all flex items-center justify-center gap-2 disabled:opacity-60"
-          >
-            {loading ? (
-              <Loader2 className="w-3.5 h-3.5 animate-spin text-primary" />
-            ) : (
-              <Sparkles className="w-3.5 h-3.5 text-primary" />
-            )}
-            <span>1-Click Demo Sign In (Student / Job Seeker)</span>
-          </button>
-
           {/* Unlocked Benefits list */}
-          <div className="pt-2 border-t border-ink/5">
-            <p className="text-[10px] font-semibold text-ink-subtle uppercase tracking-wider mb-2">
+          <div className="pt-4 border-t border-ink/5">
+            <p className="text-[10px] font-semibold text-ink-subtle uppercase tracking-wider mb-2.5">
               Features with Free Account:
             </p>
             <div className="grid grid-cols-3 gap-2 text-[11px] text-ink-muted">
-              <div className="flex items-center gap-1.5">
+              <div className="flex items-center gap-1.5 p-2 rounded-xl bg-surface-2/60">
                 <FileText className="w-3.5 h-3.5 text-primary flex-shrink-0" />
                 <span>PDF Reports</span>
               </div>
-              <div className="flex items-center gap-1.5">
+              <div className="flex items-center gap-1.5 p-2 rounded-xl bg-surface-2/60">
                 <History className="w-3.5 h-3.5 text-primary flex-shrink-0" />
                 <span>Scan History</span>
               </div>
-              <div className="flex items-center gap-1.5">
+              <div className="flex items-center gap-1.5 p-2 rounded-xl bg-surface-2/60">
                 <BarChart3 className="w-3.5 h-3.5 text-primary flex-shrink-0" />
                 <span>Threat Intel</span>
               </div>

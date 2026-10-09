@@ -14,6 +14,7 @@ GET  /api/v1/assessments/{assessment_id}
 
 from __future__ import annotations
 
+import hashlib
 import logging
 import uuid
 from datetime import datetime, timezone
@@ -44,6 +45,11 @@ from app.services.pipeline import run_assessment
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/v1", tags=["assessments"])
+
+
+def _hash_password(password: str) -> str:
+    """Hash candidate password using SHA-256 for secure storage."""
+    return hashlib.sha256(password.encode("utf-8")).hexdigest()
 
 
 
@@ -341,7 +347,13 @@ async def signup_user(req: UserRegisterRequest) -> UserProfileResponse:
         "created_at": now_str,
         "updated_at": now_str,
     }
-    await db.users.insert_one(user_doc)
+    if req.password:
+        user_doc["password_hash"] = _hash_password(req.password)
+
+    try:
+        await db.users.insert_one(user_doc)
+    except Exception as exc:
+        logger.warning("MongoDB user insert error: %s", exc)
 
     return UserProfileResponse(
         id=user_id,
@@ -397,8 +409,15 @@ async def login_user(req: UserLoginRequest) -> UserProfileResponse:
         "created_at": now_str,
         "updated_at": now_str,
     }
-    await db.users.insert_one(user_doc)
-    stats = await _compute_user_stats(db, clean_email)
+    if req.password:
+        user_doc["password_hash"] = _hash_password(req.password)
+
+    try:
+        await db.users.insert_one(user_doc)
+        stats = await _compute_user_stats(db, clean_email)
+    except Exception as exc:
+        logger.warning("MongoDB login user auto-provision error: %s", exc)
+        stats = {"total_scans": 0, "high_risk_scans": 0, "safe_scans": 0, "moderate_scans": 0}
 
     return UserProfileResponse(
         id=user_id,

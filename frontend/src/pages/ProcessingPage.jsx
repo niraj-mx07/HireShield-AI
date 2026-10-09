@@ -18,7 +18,7 @@ export const ProcessingPage = () => {
   useEffect(() => {
     const timers = [];
     
-    // Step completion timeline over ~3.5 seconds
+    // Snappy step completion timeline over ~1.1 seconds
     steps.forEach((_, index) => {
       const timer = setTimeout(() => {
         setCompletedSteps(prev => {
@@ -26,14 +26,14 @@ export const ProcessingPage = () => {
           next[index] = true;
           return next;
         });
-      }, (index + 1) * 500);
+      }, (index + 1) * 160);
       timers.push(timer);
     });
 
-    // Auto-navigate to result page
+    // Swift auto-navigate to result page
     const navTimer = setTimeout(() => {
       navigate('/analyze/result');
-    }, 3600);
+    }, 1200);
     timers.push(navTimer);
 
     return () => timers.forEach(t => clearTimeout(t));
