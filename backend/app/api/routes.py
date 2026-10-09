@@ -139,29 +139,41 @@ async def list_assessments(
     skip: int = Query(0, ge=0, description="Number of records to skip"),
     limit: int = Query(20, ge=1, le=100, description="Maximum records to return"),
 ):
-    """List stored assessments with lightweight summary fields."""
-    db = get_database()
-    cursor = (
-        db.assessments
-        .find({}, {
-            "_id": 0,
-            "id": 1,
-            "status": 1,
-            "risk_score": 1,
-            "risk_band": 1,
-            "recommendation": 1,
-            "confidence": 1,
-            "active_inputs": 1,
-            "input_summary": 1,
-            "created_at": 1,
-            "updated_at": 1,
-        })
-        .sort("created_at", -1)
-        .skip(skip)
-        .limit(limit)
-    )
-    docs = await cursor.to_list(length=limit)
-    total = await db.assessments.count_documents({})
+    """List stored assessments with lightweight summary fields.
+
+    Returns an empty page (total=0) when persistence is unavailable so the
+    History tab degrades gracefully instead of failing the scan flow.
+    """
+    try:
+        db = get_database()
+    except Exception as exc:
+        logger.warning("Assessment history unavailable (DB down): %s", exc)
+        return {"total": 0, "skip": skip, "limit": limit, "assessments": []}
+    try:
+        cursor = (
+            db.assessments
+            .find({}, {
+                "_id": 0,
+                "id": 1,
+                "status": 1,
+                "risk_score": 1,
+                "risk_band": 1,
+                "recommendation": 1,
+                "confidence": 1,
+                "active_inputs": 1,
+                "input_summary": 1,
+                "created_at": 1,
+                "updated_at": 1,
+            })
+            .sort("created_at", -1)
+            .skip(skip)
+            .limit(limit)
+        )
+        docs = await cursor.to_list(length=limit)
+        total = await db.assessments.count_documents({})
+    except Exception as exc:
+        logger.warning("Assessment history query failed (DB down): %s", exc)
+        return {"total": 0, "skip": skip, "limit": limit, "assessments": []}
 
     return {
         "total": total,
@@ -262,13 +274,21 @@ async def report_scam(report: ScamReportRequest) -> ScamReportResponse:
 async def lookup_scam(
     indicator: str = Query(..., min_length=2, description="Indicator value to search (e.g. phone, UPI, email, handle)")
 ):
-    """Search community blacklist for matches."""
-    db = get_database()
+    """Search community blacklist for matches (empty when DB is down)."""
+    try:
+        db = get_database()
+    except Exception as exc:
+        logger.warning("Scam lookup unavailable (DB down): %s", exc)
+        return {"found": False, "query": indicator.strip().lower(), "match_count": 0, "reports": []}
     clean_val = indicator.strip().lower()
-    
+
     # Case-insensitive substring search
     regex_query = {"indicator_value": {"$regex": clean_val, "$options": "i"}}
-    matches = await db.scam_reports.find(regex_query).to_list(length=10)
+    try:
+        matches = await db.scam_reports.find(regex_query).to_list(length=10)
+    except Exception as exc:
+        logger.warning("Scam lookup query failed (DB down): %s", exc)
+        return {"found": False, "query": clean_val, "match_count": 0, "reports": []}
 
     found = len(matches) > 0
     return {
@@ -295,10 +315,18 @@ async def lookup_scam(
     description="Fetch recent community-reported fraudulent recruitment attempts.",
 )
 async def get_recent_scams(limit: int = Query(10, ge=1, le=50)):
-    """Fetch recent community scam reports."""
-    db = get_database()
-    cursor = db.scam_reports.find().sort("reported_at", -1).limit(limit)
-    reports = await cursor.to_list(length=limit)
+    """Fetch recent community scam reports (empty when DB is down)."""
+    try:
+        db = get_database()
+    except Exception as exc:
+        logger.warning("Recent scams unavailable (DB down): %s", exc)
+        return {"count": 0, "reports": []}
+    try:
+        cursor = db.scam_reports.find().sort("reported_at", -1).limit(limit)
+        reports = await cursor.to_list(length=limit)
+    except Exception as exc:
+        logger.warning("Recent scams query failed (DB down): %s", exc)
+        return {"count": 0, "reports": []}
 
     return {
         "count": len(reports),
