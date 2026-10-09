@@ -387,6 +387,25 @@ def is_passive_reference(text: str, start: int, end: int) -> bool:
 
     cue_text, scope = cue
 
+    # A weak denial directly attached to a fee/charge phrase means the
+    # candidate is NOT required to pay it. Examples:
+    #   "No registration fee is required."
+    #   "No application fee is required."
+    #   "No processing fee is required."
+    #   "There is no consultancy charge."
+    #
+    # Do not treat "required" itself as a payment demand. The important
+    # distinction is whether the fee phrase is negated.
+    if re.search(
+        r"\b(?:no|zero|nil|without|free)\s+"
+        r"(?:registration|processing|application|interview|consultancy)"
+        r"\s+(?:fee|fees|charge|charges)\b",
+        scope,
+        re.IGNORECASE,
+    ):
+        return True
+
+
     # A directive aimed at the reader beats any surrounding denial.
     # Scope first (a "please pay" after the denial), then the whole clause
     # (a "you must deposit ₹5000" anywhere in it).

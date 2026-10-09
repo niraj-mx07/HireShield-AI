@@ -114,9 +114,19 @@ async def run_assessment(
     )
 
     # ------------------------------------------------------------------
-    # 1. Create a pending record in the database
+    # 1. Create a pending record in the database (best-effort)
     # ------------------------------------------------------------------
-    db = get_database()
+    # Persistence must never fail an assessment: when MongoDB is down,
+    # mis-configured, or unreachable the scan still runs and returns a
+    # full report — only history/blacklist lookups are skipped.
+    db = None
+    try:
+        db = get_database()
+    except Exception as exc:
+        logger.warning(
+            "Assessment %s — database unavailable at startup, running without persistence: %s",
+            assessment_id, exc,
+        )
     input_summary = build_input_summary(
         url=request.url,
         description=request.description,
@@ -129,8 +139,16 @@ async def run_assessment(
         message_log=request.message_log,
         has_document=document_bytes is not None,
     )
-    record = AssessmentRecord(id=assessment_id, input_summary=input_summary)
-    await db.assessments.insert_one(record.model_dump())
+    if db is not None:
+        try:
+            record = AssessmentRecord(id=assessment_id, input_summary=input_summary)
+            await db.assessments.insert_one(record.model_dump())
+        except Exception as exc:
+            logger.warning(
+                "Assessment %s — pending-record write skipped (DB unavailable): %s",
+                assessment_id, exc,
+            )
+            db = None
 
     # ------------------------------------------------------------------
     # 2. Run All Analyzers (document text was extracted above)
@@ -211,7 +229,7 @@ async def run_assessment(
     )
 
     # ------------------------------------------------------------------
-    # 2b. Cross-reference community scam blacklist
+    # 2b. Cross-reference community scam blacklist (skipped when DB is down)
     # ------------------------------------------------------------------
     try:
         query_candidates = [
@@ -221,7 +239,7 @@ async def run_assessment(
                 request.url,
             ) if v and v.strip()
         ]
-        if query_candidates:
+        if db is not None and query_candidates:
             matched_reports = await db.scam_reports.find(
                 {"indicator_value": {"$in": query_candidates}}
             ).to_list(length=5)
@@ -407,22 +425,29 @@ async def run_assessment(
         created_at=now,
     )
 
-    await db.assessments.update_one(
-        {"id": assessment_id},
-        {"$set": {
-            "status": AssessmentStatus.COMPLETED.value,
-            "risk_score": risk_score,
-            "risk_band": band.value,
-            "recommendation": rec.value,
-            "confidence": confidence,
-            "detected_sources": job_meta.detected_sources,
-            "category_scores": [cs.model_dump() for cs in category_scores],
-            "risk_factors": [rf.model_dump() for rf in risk_factors],
-            "active_inputs": active_inputs,
-            "document_derived_inputs": document_derived_inputs,
-            "updated_at": now.isoformat(),
-        }},
-    )
+    if db is not None:
+        try:
+            await db.assessments.update_one(
+                {"id": assessment_id},
+                {"$set": {
+                    "status": AssessmentStatus.COMPLETED.value,
+                    "risk_score": risk_score,
+                    "risk_band": band.value,
+                    "recommendation": rec.value,
+                    "confidence": confidence,
+                    "detected_sources": job_meta.detected_sources,
+                    "category_scores": [cs.model_dump() for cs in category_scores],
+                    "risk_factors": [rf.model_dump() for rf in risk_factors],
+                    "active_inputs": active_inputs,
+                    "document_derived_inputs": document_derived_inputs,
+                    "updated_at": now.isoformat(),
+                }},
+            )
+        except Exception as exc:
+            logger.warning(
+                "Assessment %s — completion write skipped (DB unavailable): %s",
+                assessment_id, exc,
+            )
 
     logger.info(
         "Assessment %s completed — score=%.1f band=%s rec=%s company='%s' title='%s' sources=%s",
