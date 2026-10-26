@@ -258,14 +258,31 @@ export function formatBackendResponse(apiData, userInputs = {}) {
     };
   });
 
+  let detectedCompany = userInputs.company_name || '';
+  if (!detectedCompany && Array.isArray(apiData.risk_factors)) {
+    for (const rf of apiData.risk_factors) {
+      const match =
+        rf.description?.match(/corporate portal for ([^.]+)/i) ||
+        rf.description?.match(/Company '([^']+)'/i) ||
+        rf.evidence?.match(/company identity '([^']+)'/i);
+      if (match && match[1]) {
+        detectedCompany = match[1].trim();
+        break;
+      }
+    }
+  }
+
   const formattedScore = Math.round(Number(apiData.risk_score) || 0);
-  const resolvedTitle = userInputs.title || userInputs.company_name ? `${userInputs.title || 'Opportunity Assessment'} — ${userInputs.company_name || 'Hiring Entity'}` : 'Opportunity Assessment';
+  const effectiveCompany = detectedCompany || 'Hiring Organization';
+  const resolvedTitle = userInputs.title || detectedCompany
+    ? `${userInputs.title || 'Opportunity Assessment'} — ${effectiveCompany}`
+    : 'Opportunity Assessment';
 
   return {
     id: `HS-${(apiData.id || '').slice(0, 8).toUpperCase()}`,
       jobTitle: resolvedTitle,
       title: resolvedTitle,
-      company: userInputs.company_name || 'Hiring Organization',
+      company: effectiveCompany,
       url: userInputs.url || '',
       recruiterEmail: userInputs.recruiter_email || '',
       recruiterName: userInputs.recruiter_name || '',

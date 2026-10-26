@@ -90,13 +90,22 @@ async def analyze(
             )
 
     # 2. Check for UPI / Indian payment gateways & extract specific UPI VPA handle if present
+    KNOWN_UPI_HANDLES = (
+        "okhdfcbank", "okaxis", "okicici", "oksbi", "paytm", "ybl", "apl", "axl", "ibl",
+        "sbi", "postbank", "fbl", "kotak", "idfcbank", "barodampay", "pnb", "upi",
+        "icici", "hdfcbank", "federal", "slice", "fam", "jupiteraxis", "freecharge"
+    )
     upi_keywords_pat = r"\b(?:upi|gpay|google pay|phonepe|paytm|bhim|qr code|scanner|vpa)\b"
-    vpa_pat = r"\b([a-zA-Z0-9.\-_]{2,64}@(?!gmail|yahoo|outlook|hotmail|icloud|proton)[a-zA-Z]{2,32})\b"
+    vpa_pat = r"\b([a-zA-Z0-9.\-_]{2,64}@(?:" + "|".join(KNOWN_UPI_HANDLES) + r"))(?:\s|[.,;!?]|$)"
     
-    extracted_vpas = re.findall(vpa_pat, full_text, flags=re.IGNORECASE)
+    extracted_vpas = [m[0] if isinstance(m, tuple) else m for m in re.findall(vpa_pat, full_text, flags=re.IGNORECASE)]
     has_upi_keyword = bool(re.search(upi_keywords_pat, text_lower))
 
-    if extracted_vpas or has_upi_keyword:
+    # Only flag UPI keyword if mentioned in payment / transfer context or with explicit UPI handle
+    payment_context = bool(re.search(r"\b(?:pay|send|transfer|deposit|fee|charge|scan|amount|rs|₹|inr)\b", text_lower))
+    upi_triggered = bool(extracted_vpas) or (has_upi_keyword and payment_context)
+
+    if upi_triggered:
         base_score += 40.0
         if extracted_vpas:
             vpa_display = ", ".join(extracted_vpas[:2])
@@ -157,7 +166,7 @@ async def analyze(
 
     # 4. If text was scanned and clean of financial demands
     if not risk_factors:
-        base_score = 5.0
+        base_score = 0.0
         risk_factors.append(
             RiskFactor(
                 category=RiskCategory.FINANCIAL_SCAM,

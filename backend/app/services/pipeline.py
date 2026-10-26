@@ -12,9 +12,11 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import re
 import uuid
 from datetime import datetime, timezone
 from typing import Optional
+from urllib.parse import urlparse
 
 from app.analyzers import (
     company_verification,
@@ -103,10 +105,82 @@ async def run_assessment(
         logger.warning("Database write skipped/timed out for pending assessment %s: %s", assessment_id, exc)
 
     # ------------------------------------------------------------------
-    # 2. Extract Document Text (if any) and Run All Analyzers in Parallel
+    # 2. Extract Document Text and Synthesize Cross-Parameter Entities
     # ------------------------------------------------------------------
     from app.analyzers.document_analysis import extract_document_text
+    from app.analyzers.url_analysis import OFFICIAL_MNC_DOMAINS
     extracted_doc_text = extract_document_text(document_bytes, document_filename)
+
+    # Harvest all text across submitted sources to extract missing parameters
+    corpus_parts = [t.strip() for t in (request.description, request.message, extracted_doc_text) if t and t.strip()]
+    combined_corpus = "\n".join(corpus_parts)
+
+    effective_url = request.url.strip() if request.url and request.url.strip() else None
+    effective_company = request.company_name.strip() if request.company_name and request.company_name.strip() else None
+    effective_email = request.recruiter_email.strip().lower() if request.recruiter_email and request.recruiter_email.strip() else None
+    effective_phone = request.recruiter_phone.strip() if request.recruiter_phone and request.recruiter_phone.strip() else None
+    effective_name = request.recruiter_name.strip() if request.recruiter_name and request.recruiter_name.strip() else None
+
+    # A. Extract URL if not provided
+    if not effective_url and combined_corpus:
+        url_match = re.search(r"https?://[^\s<>\"'()]+", combined_corpus)
+        if url_match:
+            cand = url_match.group(0).rstrip(".,;)")
+            if not any(ign in cand.lower() for ign in ("w3.org", "schema.org", "adobe.com/ns")):
+                effective_url = cand
+
+    # B. Extract Recruiter Email if not provided
+    if not effective_email and combined_corpus:
+        email_matches = re.findall(r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b", combined_corpus)
+        for cand in email_matches:
+            domain = cand.split("@")[-1].lower()
+            if domain not in ("example.com", "schema.org", "w3.org", "github.com", "adobe.com"):
+                effective_email = cand.lower()
+                break
+
+    # C. Extract Recruiter Phone / WhatsApp if not provided
+    if not effective_phone and combined_corpus:
+        phone_match = re.search(
+            r"(?:whatsapp|contact|call|phone|tel|mobile|ph)[:\s]*([+]?\d[\d\s\-\(\)]{8,15}\d)",
+            combined_corpus,
+            re.IGNORECASE,
+        ) or re.search(r"\b(?:\+91[\s-]?)?[6-9]\d{9}\b", combined_corpus)
+        if phone_match:
+            effective_phone = phone_match.group(1).strip() if phone_match.groups() else phone_match.group(0).strip()
+
+    # D. Extract Company Name if not provided
+    if not effective_company and combined_corpus:
+        cmp_match = re.search(
+            r"(?:company|organization|employer|firm|hiring\s*entity|client)\s*[:\-]\s*([A-Za-z0-9\s&.,'-]{2,40})",
+            combined_corpus,
+            re.IGNORECASE,
+        ) or re.search(
+            r"(?:welcome to|offer of employment at|congratulations from|appointment letter from|on behalf of)\s+([A-Za-z0-9\s&.,'-]{2,40})",
+            combined_corpus,
+            re.IGNORECASE,
+        )
+        if cmp_match:
+            extracted_c = cmp_match.group(1).strip().strip(".,-")
+            if len(extracted_c) >= 3 and not any(kw in extracted_c.lower() for kw in ("the team", "our team", "candidate", "joining")):
+                effective_company = extracted_c
+
+    # If still no company, infer from known official domain if URL is present
+    if not effective_company and effective_url:
+        try:
+            dom = (urlparse(effective_url if "://" in effective_url else f"https://{effective_url}").hostname or "").lower()
+            for key, domains in OFFICIAL_MNC_DOMAINS.items():
+                if any(dom == d or dom.endswith(f".{d}") for d in domains):
+                    effective_company = key.title()
+                    break
+        except Exception:
+            pass
+
+    # E. Effective Job Description: Feed document text into ML content analyzer
+    effective_description = request.description.strip() if request.description and request.description.strip() else None
+    if not effective_description and extracted_doc_text:
+        effective_description = extracted_doc_text
+    elif effective_description and extracted_doc_text:
+        effective_description = f"{effective_description}\n\n{extracted_doc_text}"
 
     (
         job_res,
@@ -118,30 +192,30 @@ async def run_assessment(
         cons_res,
     ) = await asyncio.gather(
         job_content.analyze(
-            description=request.description,
-            company_name=request.company_name,
+            description=effective_description,
+            company_name=effective_company,
             message=request.message,
         ),
         company_verification.analyze(
-            company_name=request.company_name,
-            url=request.url,
+            company_name=effective_company,
+            url=effective_url,
             consent=consent,
         ),
         recruiter_verification.analyze(
-            recruiter_email=request.recruiter_email,
-            recruiter_name=request.recruiter_name,
-            recruiter_phone=request.recruiter_phone,
-            company_name=request.company_name,
+            recruiter_email=effective_email,
+            recruiter_name=effective_name,
+            recruiter_phone=effective_phone,
+            company_name=effective_company,
             message=request.message,
             consent=consent,
         ),
         url_analysis.analyze(
-            url=request.url,
-            company_name=request.company_name,
+            url=effective_url,
+            company_name=effective_company,
             consent=consent,
         ),
         financial_signals.analyze(
-            description=request.description,
+            description=effective_description,
             message=request.message,
             document_text=extracted_doc_text,
         ),
@@ -151,10 +225,10 @@ async def run_assessment(
             document_text=extracted_doc_text,
         ),
         consistency_check.analyze(
-            description=request.description,
-            url=request.url,
-            company_name=request.company_name,
-            recruiter_email=request.recruiter_email,
+            description=effective_description,
+            url=effective_url,
+            company_name=effective_company,
+            recruiter_email=effective_email,
             message=request.message,
             document_text=extracted_doc_text,
         ),
@@ -176,9 +250,9 @@ async def run_assessment(
     try:
         query_candidates = [
             v.strip().lower() for v in (
-                request.recruiter_email,
-                request.recruiter_phone,
-                request.url,
+                effective_email,
+                effective_phone,
+                effective_url,
             ) if v and v.strip()
         ]
         if query_candidates and db is not None:
@@ -220,12 +294,24 @@ async def run_assessment(
     active_inputs: list[str] = []
     if request.url and request.url.strip():
         active_inputs.append("Job URL")
+    elif effective_url:
+        active_inputs.append("Job URL (from document/text)")
+
     if request.description and request.description.strip():
         active_inputs.append("Job Description")
+    elif extracted_doc_text:
+        active_inputs.append("Job Content (from document)")
+
     if request.company_name and request.company_name.strip():
         active_inputs.append("Company Name")
+    elif effective_company:
+        active_inputs.append("Company Name (from document/text)")
+
     if (request.recruiter_email and request.recruiter_email.strip()) or (request.recruiter_name and request.recruiter_name.strip()) or (request.recruiter_phone and request.recruiter_phone.strip()):
         active_inputs.append("Recruiter Details")
+    elif effective_email or effective_phone:
+        active_inputs.append("Recruiter Details (from document/text)")
+
     if request.message and request.message.strip():
         active_inputs.append("Email / Message")
     if document_bytes:

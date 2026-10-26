@@ -69,24 +69,31 @@ def is_gibberish_text(text: str) -> bool:
         "poiuy", "lkjhg", "mnbv", "1234", "wasd", "rfv", "tgb", "yuiop",
         "ghjkl", "sdfg", "xcvb", "erty", "rtyu", "tyui",
     )
+    gibberish_words = 0
     for w in words:
         w_lower = w.lower()
+        is_w_gib = False
         if any(km in w_lower for km in KEYBOARD_MASH_SUBSTRINGS) and len(w_lower) >= 4:
-            return True
-        if len(w_lower) == 3 and w_lower in ("asd", "qwe", "zxc", "jkl", "hjk"):
-            return True
-        if len(w_lower) >= 4:
+            is_w_gib = True
+        elif len(w_lower) == 3 and w_lower in ("asd", "qwe", "zxc", "jkl", "hjk"):
+            is_w_gib = True
+        elif len(w_lower) >= 6:
             vowels = sum(1 for c in w_lower if c in "aeiouy")
             vowel_ratio = vowels / len(w_lower)
-            if vowel_ratio < 0.15 or vowel_ratio > 0.85:
-                return True
-            if re.search(r"[^aeiouy]{5,}", w_lower):
-                return True
-            if re.search(r"(.)\1{2,}", w_lower):
-                return True
-            if re.search(r"([a-z]{2,3})\1{2,}", w_lower):
-                return True
-    return False
+            if vowel_ratio < 0.12 or vowel_ratio > 0.88:
+                is_w_gib = True
+            elif re.search(r"[^aeiouy]{6,}", w_lower):
+                is_w_gib = True
+            elif re.search(r"(.)\1{2,}", w_lower):
+                is_w_gib = True
+            elif re.search(r"([a-z]{2,3})\1{2,}", w_lower):
+                is_w_gib = True
+        if is_w_gib:
+            gibberish_words += 1
+
+    if len(words) <= 2:
+        return gibberish_words > 0
+    return (gibberish_words / len(words)) >= 0.5
 
 
 def is_conversational_query(text: str) -> bool:

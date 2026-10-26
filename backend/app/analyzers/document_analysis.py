@@ -78,20 +78,109 @@ async def analyze(
     Returns:
         A :class:`CategoryResult` with score (0–100), risk factors, and analyzed=True/False.
     """
-    raw_text = document_text or extract_document_text(document_bytes, document_filename)
+    raw_text = (document_text or extract_document_text(document_bytes, document_filename)).strip()
     pdf_meta = extract_pdf_metadata(document_bytes, document_filename)
 
-    if not raw_text.strip() and not pdf_meta:
+    if not raw_text and not pdf_meta:
         return CategoryResult(score=0.0, risk_factors=[], analyzed=False)
-
 
     text_lower = raw_text.lower()
     risk_factors: list[RiskFactor] = []
     base_score = 0.0
 
-    # 1. Deposit / Hardware Purchase clause in Offer Letter
+    # 0. Check for gibberish / nonsensical text
+    from app.analyzers.job_content import is_gibberish_text
+    if raw_text and is_gibberish_text(raw_text):
+        return CategoryResult(
+            score=82.0,
+            risk_factors=[
+                RiskFactor(
+                    category=RiskCategory.DOCUMENT_ANALYSIS,
+                    severity=Severity.HIGH,
+                    description="Uploaded document contains unintelligible or random keyboard mash.",
+                    evidence="Document text is unparseable or corrupted and cannot be validated as an authentic corporate contract.",
+                    source="document_text_integrity_checker",
+                    confidence=0.95,
+                )
+            ],
+            analyzed=True,
+        )
+
+    # 1. Employment Relevance Check
+    EMPLOYMENT_CORE_TERMS = [
+        "offer", "appointment", "employment", "agreement", "salary", "compensation",
+        "ctc", "joining", "probation", "designation", "role", "position", "candidate",
+        "stipend", "remuneration", "duties", "reporting", "responsibilities", "leave",
+        "notice period", "termination", "confidentiality"
+    ]
+    matched_core_terms = [t for t in EMPLOYMENT_CORE_TERMS if t in text_lower]
+
+    is_employment_doc = len(matched_core_terms) >= 2 or any(
+        phrase in text_lower for phrase in [
+            "offer letter", "letter of appointment", "letter of intent",
+            "employment agreement", "internship offer", "terms of employment",
+            "offer of employment", "joining letter", "contract of employment"
+        ]
+    )
+
+    if raw_text and len(raw_text) > 30 and not is_employment_doc:
+        base_score += 48.0
+        risk_factors.append(
+            RiskFactor(
+                category=RiskCategory.DOCUMENT_ANALYSIS,
+                severity=Severity.MEDIUM,
+                description="Uploaded document lacks recognizable employment or offer terms.",
+                evidence=(
+                    "Document text does not match standard offer letter or employment contract structure "
+                    "(Missing designation, compensation terms, or appointment clauses)."
+                ),
+                source="employment_document_structure_validator",
+                confidence=0.88,
+            )
+        )
+
+    # 2. Template Artifacts / Unfilled Placeholder Tags
+    placeholder_pattern = re.search(
+        r"(\[company\s*name\]|\[candidate\s*name\]|\[salary\]|\[date\]|<insert\s*name>|<company\s*name>|\{candidate_name\}|\{company_name\})",
+        text_lower,
+    )
+    if placeholder_pattern:
+        base_score += 45.0
+        risk_factors.append(
+            RiskFactor(
+                category=RiskCategory.DOCUMENT_ANALYSIS,
+                severity=Severity.HIGH,
+                description="Unfilled template placeholder tags detected in offer letter.",
+                evidence=f"Document contains placeholder syntax '{placeholder_pattern.group(0)}', commonly seen in mass-generated counterfeit offer letters.",
+                source="template_artifact_detector",
+                confidence=0.94,
+            )
+        )
+
+    # 3. Direct Selection / No Interview Scam
+    no_interview_pattern = re.search(
+        r"(?:selected\s*(?:directly)?\s*without\s*(?:any)?\s*(?:interview|test|exam)|direct\s*selection\s*letter|selection\s*on\s*basis\s*of\s*resume\s*only|no\s*interview\s*(?:required|needed))",
+        text_lower,
+    )
+    if no_interview_pattern:
+        base_score += 55.0
+        risk_factors.append(
+            RiskFactor(
+                category=RiskCategory.DOCUMENT_ANALYSIS,
+                severity=Severity.HIGH,
+                description="Direct selection claimed without formal interview or evaluation.",
+                evidence=(
+                    f"Clause identified: '{no_interview_pattern.group(0)}'. "
+                    "Legitimate corporate employers conduct formal technical or HR evaluations prior to issuing offer letters."
+                ),
+                source="direct_selection_detector",
+                confidence=0.92,
+            )
+        )
+
+    # 4. Deposit / Hardware Purchase clause in Offer Letter
     deposit_pattern = re.search(
-        r"(?:refundable|security|equipment|laptop|training|kit|\s)*(?:deposit|charge|fee|amount)\s*(?:of|is)?\s*(?:rs\.?|inr|₹|\$)?\s*(\d+[\d,]*)",
+        r"(?:refundable|security|equipment|laptop|training|kit|gate\s*pass|uniform|medical|processing|\s)*(?:deposit|charge|fee|amount)\s*(?:of|is)?\s*(?:rs\.?|inr|₹|\$)?\s*(\d+[\d,]*)",
         text_lower,
     )
     if deposit_pattern:
@@ -110,26 +199,26 @@ async def analyze(
             )
         )
 
-    # 2. Fake notary / Government stamp claims in private employment contract
+    # 5. Fake notary / Government stamp / Court bond claims / Withholding certificates
     stamp_pattern = re.search(
-        r"(?:notarized stamp|govt approved bond|legal agreement bond|ministry of corporate affairs stamp|registered seal)",
+        r"(?:notarized stamp|govt approved bond|legal agreement bond|ministry of corporate affairs stamp|registered seal|submission of original (?:marksheets?|certificates?|degrees?)|court action for leaving)",
         text_lower,
     )
     if stamp_pattern:
-        base_score += 35.0
+        base_score += 45.0
         risk_factors.append(
             RiskFactor(
                 category=RiskCategory.DOCUMENT_ANALYSIS,
-                severity=Severity.MEDIUM,
-                description="Unusual legal stamp or court bond phrasing in offer document.",
+                severity=Severity.HIGH,
+                description="Unusual legal stamp, court bond, or certificate retention clause in document.",
                 evidence=f"Text references '{stamp_pattern.group(0)}', commonly added to counterfeit offer letters to intimidate freshers.",
                 source="counterfeit_document_pattern_checker",
-                confidence=0.88,
+                confidence=0.92,
             )
         )
 
-    # 3. Informal communication channel in official appointment letter
-    chat_pattern = re.search(r"(?:telegram|whatsapp|wa\.me/|@gmail\.com|@yahoo\.)", text_lower)
+    # 6. Informal communication channel in official appointment letter
+    chat_pattern = re.search(r"(?:telegram|whatsapp|wa\.me/|@gmail\.com|@yahoo\.|@rediffmail\.com)", text_lower)
     if chat_pattern:
         base_score += 35.0
         risk_factors.append(
@@ -143,16 +232,14 @@ async def analyze(
             )
         )
 
-    # 4. Forensic PDF metadata inspection (Producer, Creator, Author)
+    # 7. Forensic PDF metadata inspection (Producer, Creator, Author)
     if pdf_meta:
         creator_combined = f"{pdf_meta.get('creator', '')} {pdf_meta.get('producer', '')} {pdf_meta.get('author', '')}".lower()
         
-        # Check consumer graphic design tools
         consumer_tools = ["canva", "photoshop", "coreldraw", "illustrator", "paint.net", "gimp"]
         matched_consumer = next((tool for tool in consumer_tools if tool in creator_combined), None)
 
-        # Check enterprise e-sign & HR platforms
-        enterprise_tools = ["docusign", "adobesign", "workday", "bamboohr", "successfactors"]
+        enterprise_tools = ["docusign", "adobesign", "workday", "bamboohr", "successfactors", "oracle hcm", "sap"]
         matched_enterprise = next((tool for tool in enterprise_tools if tool in creator_combined), None)
 
         if matched_consumer:
@@ -173,7 +260,6 @@ async def analyze(
                 )
             )
         elif matched_enterprise:
-            base_score = max(base_score - 15.0, 5.0)
             ent_name = pdf_meta.get("producer") or pdf_meta.get("creator") or matched_enterprise.title()
             risk_factors.append(
                 RiskFactor(
@@ -186,23 +272,65 @@ async def analyze(
                 )
             )
 
-    # 5. If document contains legitimate employment terms (provident fund, CTC, gratuity, medical)
-    has_legit_clauses = any(
-        kw in text_lower for kw in ["provident fund", "pf", "gratuity", "cost to company", "ctc", "leaves", "health insurance"]
+    # 8. Positive Authenticity Signals (Statutory deductions, formal structure, corporate CIN/address)
+    statutory_matches = [
+        kw for kw in [
+            "provident fund", "pf deduction", "gratuity", "cost to company", "ctc breakdown",
+            "health insurance", "medical claim", "esi", "tax deduction", "tds",
+            "notice period", "probation period", "earned leave", "casual leave", "confidentiality agreement"
+        ] if kw in text_lower
+    ]
+
+    has_corporate_identity = bool(
+        re.search(r"(?:cin|corporate identification number|registered office|cin\s*no|gstin)\s*[:#]?", text_lower)
+        or re.search(r"(?:human resources|authorized signatory|head of talent acquisition|director)", text_lower)
     )
-    if has_legit_clauses and not deposit_pattern:
-        base_score = max(base_score - 10.0, 5.0)
+
+    if is_employment_doc and len(statutory_matches) >= 2 and not deposit_pattern:
+        evidence_summary = ", ".join(statutory_matches[:4])
         risk_factors.append(
             RiskFactor(
                 category=RiskCategory.DOCUMENT_ANALYSIS,
                 severity=Severity.LOW,
                 description="Standard formal compensation and benefits structure detected.",
-                evidence="Document contains standard corporate employment clauses (PF, benefits, leave policy).",
+                evidence=f"Document contains verified statutory and corporate clauses: {evidence_summary}.",
                 source="hr_structure_validator",
-                confidence=0.85,
+                confidence=0.88,
             )
         )
 
-    final_score = round(min(max(base_score, 0.0), 100.0), 2)
+    if has_corporate_identity and not deposit_pattern and is_employment_doc:
+        risk_factors.append(
+            RiskFactor(
+                category=RiskCategory.DOCUMENT_ANALYSIS,
+                severity=Severity.LOW,
+                description="Corporate registration & authorized signatory block present.",
+                evidence="Document contains corporate identification, registered office location, and formal authorization signatory.",
+                source="corporate_registry_validator",
+                confidence=0.86,
+            )
+        )
+
+    # 9. Dynamic Calibrated Scoring
+    high_flags = [rf for rf in risk_factors if rf.severity == Severity.HIGH]
+    med_flags = [rf for rf in risk_factors if rf.severity == Severity.MEDIUM]
+    low_flags = [rf for rf in risk_factors if rf.severity == Severity.LOW]
+
+    if high_flags:
+        final_score = min(max(base_score, 65.0), 98.0)
+    elif med_flags:
+        final_score = min(max(base_score, 32.0), 58.0)
+    elif is_employment_doc:
+        # Legitimate employment document with positive structure
+        if len(low_flags) >= 2:
+            final_score = 4.0
+        elif len(low_flags) == 1:
+            final_score = 8.0
+        else:
+            final_score = 14.0
+    else:
+        final_score = min(max(base_score, 0.0), 100.0)
+
+    final_score = round(final_score, 2)
     return CategoryResult(score=final_score, risk_factors=risk_factors, analyzed=True)
 
