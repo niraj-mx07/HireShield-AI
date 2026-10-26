@@ -26,7 +26,6 @@ services:
     name: hireshield-web
     runtime: static
     plan: free
-    region: oregon
     buildCommand: npm --prefix frontend install && npm --prefix frontend run build
     staticPublishPath: frontend/dist
     autoDeploy: true
