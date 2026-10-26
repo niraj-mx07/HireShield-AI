@@ -25,6 +25,34 @@ export const Header = () => {
     navigate(path);
   };
 
+  const UserAvatar = ({ size = 'w-6 h-6', textSize = 'text-xs' }) => {
+    const isImageUrl =
+      user?.avatar &&
+      typeof user.avatar === 'string' &&
+      (user.avatar.startsWith('http://') || user.avatar.startsWith('https://'));
+    const initial = user?.name ? user.name.charAt(0).toUpperCase() : (user?.avatar || 'U');
+
+    return (
+      <div className={`${size} rounded-full bg-primary text-surface flex items-center justify-center ${textSize} font-bold overflow-hidden flex-shrink-0 shadow-sm`}>
+        {isImageUrl ? (
+          <img
+            src={user.avatar}
+            alt={user?.name || 'User'}
+            referrerPolicy="no-referrer"
+            className="w-full h-full object-cover"
+            onError={(e) => {
+              e.currentTarget.style.display = 'none';
+              if (e.currentTarget.nextSibling) {
+                e.currentTarget.nextSibling.style.display = 'block';
+              }
+            }}
+          />
+        ) : null}
+        <span style={{ display: isImageUrl ? 'none' : 'block' }}>{initial}</span>
+      </div>
+    );
+  };
+
   return (
     <header className="sticky top-0 z-40 bg-surface/90 backdrop-blur-md border-b border-ink/5 transition-all">
       <div className="max-w-[1200px] mx-auto px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between">
@@ -70,19 +98,22 @@ export const Header = () => {
                 onClick={() => setUserDropdownOpen(!userDropdownOpen)}
                 className="flex items-center gap-2.5 px-3.5 py-1.5 rounded-full bg-surface-2 border border-ink/10 hover:bg-surface transition-all text-xs font-semibold text-ink"
               >
-                <div className="w-6 h-6 rounded-full bg-primary text-surface flex items-center justify-center text-xs font-bold relative">
-                  {user?.avatar || 'U'}
+                <div className="relative flex-shrink-0">
+                  <UserAvatar size="w-6 h-6" textSize="text-xs" />
                   <span className="absolute -bottom-0.5 -right-0.5 w-2 h-2 rounded-full bg-emerald-500 border border-surface" />
                 </div>
-                <span>{user?.name || 'Account'}</span>
-                <ChevronDown className="w-3.5 h-3.5 text-ink-subtle" />
+                <span className="max-w-[120px] truncate">{user?.name || 'Account'}</span>
+                <ChevronDown className="w-3.5 h-3.5 text-ink-subtle flex-shrink-0" />
               </button>
 
               {userDropdownOpen && (
                 <div className="absolute right-0 mt-2 w-60 bg-surface border border-ink/10 rounded-2xl shadow-floating py-2 z-50 animate-in fade-in duration-150">
-                  <div className="px-4 py-2.5 border-b border-ink/5">
-                    <p className="text-xs font-semibold text-ink truncate">{user?.name}</p>
-                    <p className="text-[11px] text-ink-subtle truncate">{user?.email}</p>
+                  <div className="px-4 py-2.5 border-b border-ink/5 flex items-center gap-3">
+                    <UserAvatar size="w-8 h-8" textSize="text-sm" />
+                    <div className="min-w-0 flex-1">
+                      <p className="text-xs font-semibold text-ink truncate">{user?.name}</p>
+                      <p className="text-[11px] text-ink-subtle truncate">{user?.email}</p>
+                    </div>
                   </div>
 
                   <Link
@@ -168,13 +199,11 @@ export const Header = () => {
           <div className="pt-4 border-t border-ink/5 flex flex-col gap-3">
             {isLoggedIn ? (
               <div className="flex items-center justify-between p-3 rounded-2xl bg-surface-2">
-                <div className="flex items-center gap-2">
-                  <div className="w-7 h-7 rounded-full bg-primary text-surface flex items-center justify-center text-xs font-bold">
-                    {user?.avatar || 'U'}
-                  </div>
-                  <div className="text-xs">
-                    <p className="font-semibold text-ink">{user?.name}</p>
-                    <p className="text-ink-subtle">{user?.email}</p>
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <UserAvatar size="w-8 h-8" textSize="text-sm" />
+                  <div className="text-xs min-w-0">
+                    <p className="font-semibold text-ink truncate">{user?.name}</p>
+                    <p className="text-ink-subtle truncate">{user?.email}</p>
                   </div>
                 </div>
                 <button
