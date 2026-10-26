@@ -330,21 +330,9 @@ async def signup_user(req: UserRegisterRequest) -> UserProfileResponse:
 
     existing = await db.users.find_one({"email": clean_email})
     if existing:
-        stats = await _compute_user_stats(db, clean_email)
-        user_id = existing.get("id", f"USR-{uuid.uuid4().hex[:6].upper()}")
-        role = existing.get("role", "Candidate / Job Seeker")
-        token = create_access_token({"sub": user_id, "email": clean_email, "role": role})
-        return UserProfileResponse(
-            id=user_id,
-            name=existing.get("name", clean_name),
-            email=clean_email,
-            role=role,
-            avatar=existing.get("avatar", clean_name[:1].upper() if clean_name else "U"),
-            created_at=existing.get("created_at", now_str),
-            updated_at=existing.get("updated_at"),
-            access_token=token,
-            token_type="bearer",
-            **stats,
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="An account with this email already exists. Please sign in instead.",
         )
 
     user_id = f"USR-{uuid.uuid4().hex[:8].upper()}"

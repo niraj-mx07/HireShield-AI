@@ -69,8 +69,17 @@ export async function apiSignup(userData) {
   });
 
   if (!response.ok) {
-    const errText = await response.text();
-    throw new Error(`Signup Error ${response.status}: ${errText}`);
+    let errMessage = `Signup Error ${response.status}`;
+    try {
+      const errJson = await response.json();
+      if (errJson && errJson.detail) {
+        errMessage = errJson.detail;
+      }
+    } catch {
+      const errText = await response.text().catch(() => '');
+      if (errText) errMessage = errText;
+    }
+    throw new Error(errMessage);
   }
 
   return response.json();
@@ -85,8 +94,17 @@ export async function apiLogin(credentials) {
   });
 
   if (!response.ok) {
-    const errText = await response.text();
-    throw new Error(`Login Error ${response.status}: ${errText}`);
+    let errMessage = `Login Error ${response.status}`;
+    try {
+      const errJson = await response.json();
+      if (errJson && errJson.detail) {
+        errMessage = errJson.detail;
+      }
+    } catch {
+      const errText = await response.text().catch(() => '');
+      if (errText) errMessage = errText;
+    }
+    throw new Error(errMessage);
   }
 
   return response.json();

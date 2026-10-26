@@ -4,7 +4,7 @@ import pytest
 import pytest_asyncio
 from fastapi import HTTPException
 
-from app.database import connect, disconnect
+from app.database import connect, disconnect, get_database
 from app.models.schemas import (
     UserRegisterRequest,
     UserLoginRequest,
@@ -96,6 +96,10 @@ async def test_auth_signup_and_password_login():
     email = "secure.candidate@hireshield.ai"
     password = "SuperSecretPassword123!"
 
+    # Clean up any leftover from previous runs
+    db = get_database()
+    await db.users.delete_many({"email": email})
+
     # 1. Signup
     reg_req = UserRegisterRequest(
         name="Secure Candidate",
@@ -119,3 +123,24 @@ async def test_auth_signup_and_password_login():
         await login_user(login_req_bad)
     assert exc_info.value.status_code == 401
     assert "invalid credentials" in exc_info.value.detail.lower()
+
+
+@pytest.mark.asyncio
+async def test_duplicate_signup_raises_409():
+    """Verify that signing up with an already registered email raises 409 Conflict."""
+    email = "duplicate.test@hireshield.ai"
+    db = get_database()
+    await db.users.delete_many({"email": email})
+
+    reg_req = UserRegisterRequest(
+        name="Original User",
+        email=email,
+        password="Pass1234!",
+    )
+    res = await signup_user(reg_req)
+    assert res.email == email
+
+    with pytest.raises(HTTPException) as exc_info:
+        await signup_user(reg_req)
+    assert exc_info.value.status_code == 409
+    assert "already exists" in exc_info.value.detail.lower()

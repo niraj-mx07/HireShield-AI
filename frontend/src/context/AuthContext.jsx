@@ -375,7 +375,9 @@ export const AuthProvider = ({ children }) => {
         };
       }
     } catch (err) {
-      console.warn('Backend login fallback to local profile:', err);
+      console.warn('Backend login error:', err);
+      setDbSyncStatus('offline');
+      throw err;
     }
 
     setUser(authUser);
@@ -432,7 +434,9 @@ export const AuthProvider = ({ children }) => {
         };
       }
     } catch (err) {
-      console.warn('Backend signup fallback to local account:', err);
+      console.warn('Backend signup error:', err);
+      setDbSyncStatus('offline');
+      throw err;
     }
 
     // Prepare initial scan history
