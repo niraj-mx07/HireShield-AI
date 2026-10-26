@@ -15,9 +15,12 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy backend application code
 COPY backend/ ./
 
-# Copy ML artifacts into position
+# Copy ML inference code and trained model artifacts (training datasets excluded)
+COPY ml/__init__.py /app/ml/__init__.py
+COPY ml/training/ /app/ml/training/
 COPY ml/artifacts/ /app/ml/artifacts/
 
+ENV PYTHONPATH="/app"
 EXPOSE 8000
 
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]

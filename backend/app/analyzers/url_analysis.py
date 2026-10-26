@@ -96,8 +96,21 @@ OFFICIAL_MNC_DOMAINS = {
 }
 
 
+try:
+    from cachetools import TTLCache
+    _DNS_CACHE: dict = TTLCache(maxsize=1024, ttl=3600)     # 1 hour
+    _RDAP_CACHE: dict = TTLCache(maxsize=1024, ttl=86400)   # 24 hours
+except ImportError:
+    _DNS_CACHE = {}
+    _RDAP_CACHE = {}
+
+
 async def _check_domain_dns_resolution(domain: str) -> bool:
-    """Verify live DNS host resolution (A records) via Cloudflare/Google DoH."""
+    """Verify live DNS host resolution (A records) via Cloudflare/Google DoH with caching."""
+    domain_key = domain.lower().strip()
+    if domain_key in _DNS_CACHE:
+        return _DNS_CACHE[domain_key]
+
     url_cf = f"https://cloudflare-dns.com/dns-query?name={domain}&type=A"
     try:
         async with httpx.AsyncClient(timeout=0.8) as client:
@@ -105,6 +118,7 @@ async def _check_domain_dns_resolution(domain: str) -> bool:
             if resp.status_code == 200:
                 answers = resp.json().get("Answer", [])
                 if answers:
+                    _DNS_CACHE[domain_key] = True
                     return True
     except Exception as exc:
         logger.debug("DNS A resolution check failed via Cloudflare for %s: %s", domain, exc)
@@ -117,15 +131,17 @@ async def _check_domain_dns_resolution(domain: str) -> bool:
             if resp.status_code == 200:
                 answers = resp.json().get("Answer", [])
                 if answers:
+                    _DNS_CACHE[domain_key] = True
                     return True
     except Exception as exc:
         logger.debug("DNS A resolution check failed via Google for %s: %s", domain, exc)
 
+    _DNS_CACHE[domain_key] = False
     return False
 
 
 async def _check_domain_rdap(domain: str) -> dict | None:
-    """Query RDAP registry to determine domain creation date and registration age."""
+    """Query RDAP registry to determine domain creation date and registration age with caching."""
     # Strip subdomains for common multi-level domains
     parts = domain.split(".")
     if len(parts) > 2 and parts[-2] not in {"co", "com", "org", "net", "gov", "edu", "ac"}:
@@ -134,6 +150,10 @@ async def _check_domain_rdap(domain: str) -> dict | None:
         root_domain = ".".join(parts[-3:])
     else:
         root_domain = domain
+
+    domain_key = root_domain.lower().strip()
+    if domain_key in _RDAP_CACHE:
+        return _RDAP_CACHE[domain_key]
 
     url = f"https://rdap.org/domain/{root_domain}"
     try:
@@ -150,13 +170,17 @@ async def _check_domain_rdap(domain: str) -> dict | None:
                             created_dt = datetime.fromisoformat(clean_date)
                             now = datetime.now(timezone.utc)
                             age_days = (now - created_dt).days
-                            return {
+                            result = {
                                 "root_domain": root_domain,
                                 "created_date": created_dt.strftime("%Y-%m-%d"),
                                 "age_days": max(0, age_days),
                             }
+                            _RDAP_CACHE[domain_key] = result
+                            return result
     except Exception as exc:
         logger.debug("RDAP lookup skipped or failed for %s: %s", domain, exc)
+
+    _RDAP_CACHE[domain_key] = None
     return None
 
 

@@ -237,6 +237,8 @@ class UserProfileResponse(BaseModel):
     high_risk_scans: int = 0
     safe_scans: int = 0
     moderate_scans: int = 0
+    access_token: Optional[str] = Field(None, description="Signed JWT Bearer access token")
+    token_type: Optional[str] = Field("bearer", description="Token type")
 
 
 class UserProfileUpdateRequest(BaseModel):

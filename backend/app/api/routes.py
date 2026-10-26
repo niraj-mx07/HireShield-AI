@@ -41,6 +41,12 @@ from app.models.schemas import (
     UserHistoryItemPayload,
 )
 from app.services.pipeline import run_assessment
+from app.utils.security import (
+    hash_password,
+    verify_password,
+    create_access_token,
+    decode_access_token,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -48,8 +54,8 @@ router = APIRouter(prefix="/api/v1", tags=["assessments"])
 
 
 def _hash_password(password: str) -> str:
-    """Hash candidate password using SHA-256 for secure storage."""
-    return hashlib.sha256(password.encode("utf-8")).hexdigest()
+    """Hash candidate password using secure utility."""
+    return hash_password(password)
 
 
 
@@ -325,24 +331,30 @@ async def signup_user(req: UserRegisterRequest) -> UserProfileResponse:
     existing = await db.users.find_one({"email": clean_email})
     if existing:
         stats = await _compute_user_stats(db, clean_email)
+        user_id = existing.get("id", f"USR-{uuid.uuid4().hex[:6].upper()}")
+        role = existing.get("role", "Candidate / Job Seeker")
+        token = create_access_token({"sub": user_id, "email": clean_email, "role": role})
         return UserProfileResponse(
-            id=existing.get("id", f"USR-{uuid.uuid4().hex[:6].upper()}"),
+            id=user_id,
             name=existing.get("name", clean_name),
             email=clean_email,
-            role=existing.get("role", "Candidate / Job Seeker"),
+            role=role,
             avatar=existing.get("avatar", clean_name[:1].upper() if clean_name else "U"),
             created_at=existing.get("created_at", now_str),
             updated_at=existing.get("updated_at"),
+            access_token=token,
+            token_type="bearer",
             **stats,
         )
 
     user_id = f"USR-{uuid.uuid4().hex[:8].upper()}"
     avatar = (req.avatar or clean_name[:1] or "U").upper()
+    role = req.role or "Candidate / Job Seeker"
     user_doc = {
         "id": user_id,
         "name": clean_name,
         "email": clean_email,
-        "role": req.role or "Candidate / Job Seeker",
+        "role": role,
         "avatar": avatar,
         "created_at": now_str,
         "updated_at": now_str,
@@ -355,11 +367,12 @@ async def signup_user(req: UserRegisterRequest) -> UserProfileResponse:
     except Exception as exc:
         logger.warning("MongoDB user insert error: %s", exc)
 
+    token = create_access_token({"sub": user_id, "email": clean_email, "role": role})
     return UserProfileResponse(
         id=user_id,
         name=clean_name,
         email=clean_email,
-        role=user_doc["role"],
+        role=role,
         avatar=avatar,
         created_at=now_str,
         updated_at=now_str,
@@ -367,6 +380,8 @@ async def signup_user(req: UserRegisterRequest) -> UserProfileResponse:
         high_risk_scans=0,
         safe_scans=0,
         moderate_scans=0,
+        access_token=token,
+        token_type="bearer",
     )
 
 
@@ -383,15 +398,29 @@ async def login_user(req: UserLoginRequest) -> UserProfileResponse:
 
     existing = await db.users.find_one({"email": clean_email})
     if existing:
+        # Enforce password authentication if account is password-protected
+        stored_hash = existing.get("password_hash")
+        if stored_hash and req.password:
+            if not verify_password(req.password, stored_hash):
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail="Invalid credentials. Please verify your password.",
+                )
+
         stats = await _compute_user_stats(db, clean_email)
+        user_id = existing.get("id", f"USR-{uuid.uuid4().hex[:6].upper()}")
+        role = existing.get("role", "Candidate / Job Seeker")
+        token = create_access_token({"sub": user_id, "email": clean_email, "role": role})
         return UserProfileResponse(
-            id=existing.get("id", f"USR-{uuid.uuid4().hex[:6].upper()}"),
+            id=user_id,
             name=existing.get("name", clean_email.split("@")[0].capitalize()),
             email=clean_email,
-            role=existing.get("role", "Candidate / Job Seeker"),
+            role=role,
             avatar=existing.get("avatar", "U"),
             created_at=existing.get("created_at", now_str),
             updated_at=existing.get("updated_at"),
+            access_token=token,
+            token_type="bearer",
             **stats,
         )
 
@@ -399,12 +428,13 @@ async def login_user(req: UserLoginRequest) -> UserProfileResponse:
     name = req.name.strip() if req.name else prefix or "Candidate"
     user_id = f"USR-{uuid.uuid4().hex[:8].upper()}"
     avatar = name[:1].upper() if name else "U"
+    role = "Candidate / Job Seeker"
 
     user_doc = {
         "id": user_id,
         "name": name,
         "email": clean_email,
-        "role": "Candidate / Job Seeker",
+        "role": role,
         "avatar": avatar,
         "created_at": now_str,
         "updated_at": now_str,
@@ -419,14 +449,17 @@ async def login_user(req: UserLoginRequest) -> UserProfileResponse:
         logger.warning("MongoDB login user auto-provision error: %s", exc)
         stats = {"total_scans": 0, "high_risk_scans": 0, "safe_scans": 0, "moderate_scans": 0}
 
+    token = create_access_token({"sub": user_id, "email": clean_email, "role": role})
     return UserProfileResponse(
         id=user_id,
         name=name,
         email=clean_email,
-        role=user_doc["role"],
+        role=role,
         avatar=avatar,
         created_at=now_str,
         updated_at=now_str,
+        access_token=token,
+        token_type="bearer",
         **stats,
     )
 

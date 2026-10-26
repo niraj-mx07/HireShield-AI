@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import logging
 import re
+import unicodedata
 
 from app.models.schemas import (
     CategoryResult,
@@ -22,6 +23,26 @@ from app.models.schemas import (
 from app.services.model_loader import get_job_content_model
 
 logger = logging.getLogger(__name__)
+
+
+def normalize_evasion_text(text: str) -> str:
+    """Normalize unicode obfuscations, zero-width spaces, and homoglyphs used to evade filters."""
+    if not text:
+        return ""
+    # Strip zero-width spaces and invisible characters
+    text = re.sub(r"[\u200b\u200c\u200d\u200e\u200f\ufeff]", "", text)
+    # NFKD Unicode decomposition (e.g. bold/italic math symbols -> standard letters)
+    text = unicodedata.normalize("NFKD", text)
+    # Common Cyrillic homoglyphs mapping to Latin equivalents
+    homoglyphs = {
+        "\u0430": "a", "\u0435": "e", "\u043e": "o", "\u0440": "p", "\u0441": "c",
+        "\u0443": "y", "\u0445": "x", "\u0456": "i", "\u0410": "A", "\u0412": "B",
+        "\u0415": "E", "\u041e": "O", "\u0420": "P", "\u0421": "C", "\u0422": "T",
+    }
+    for char, replacement in homoglyphs.items():
+        if char in text:
+            text = text.replace(char, replacement)
+    return text
 
 
 def is_gibberish_text(text: str) -> bool:
@@ -35,10 +56,24 @@ def is_gibberish_text(text: str) -> bool:
     if not words:
         return True
 
-    KEYBOARD_MASH_SUBSTRINGS = ("asdf", "qwerty", "zxcv", "hjkl", "qwer", "dfgh")
+    # Check for repeated identical words (e.g., "test test test", "blah blah blah")
+    if len(words) >= 3 and len(set(w.lower() for w in words)) <= 1:
+        return True
+
+    # Low character diversity in clean string (e.g. "abababab", "zzzzzz")
+    if len(clean) >= 6 and len(set(clean.lower())) <= 2:
+        return True
+
+    KEYBOARD_MASH_SUBSTRINGS = (
+        "asdf", "qwerty", "zxcv", "hjkl", "qwer", "dfgh", "zxcvb",
+        "poiuy", "lkjhg", "mnbv", "1234", "wasd", "rfv", "tgb", "yuiop",
+        "ghjkl", "sdfg", "xcvb", "erty", "rtyu", "tyui",
+    )
     for w in words:
         w_lower = w.lower()
         if any(km in w_lower for km in KEYBOARD_MASH_SUBSTRINGS) and len(w_lower) >= 4:
+            return True
+        if len(w_lower) == 3 and w_lower in ("asd", "qwe", "zxc", "jkl", "hjk"):
             return True
         if len(w_lower) >= 4:
             vowels = sum(1 for c in w_lower if c in "aeiouy")
@@ -49,7 +84,26 @@ def is_gibberish_text(text: str) -> bool:
                 return True
             if re.search(r"(.)\1{2,}", w_lower):
                 return True
+            if re.search(r"([a-z]{2,3})\1{2,}", w_lower):
+                return True
     return False
+
+
+def is_conversational_query(text: str) -> bool:
+    """Detect if the user entered an inquiry, prompt, or question instead of job posting text."""
+    if not text:
+        return False
+    t_clean = text.strip().lower()
+    words = t_clean.split()
+    if len(words) > 35:
+        return False
+    patterns = [
+        r"^(is\s+this|can\s+you\s+check|please\s+check|is\s+it|please\s+review|is\s+this\s+job|is\s+this\s+scam|tell\s+me\s+if)\b",
+        r"\b(is\s+this\s+a?\s*scam|is\s+this\s+fake|is\s+this\s+legit|should\s+i\s+apply\??)\b",
+        r"^(what\s+do\s+you\s+think|help\s+me\s+check|verify\s+this\s+for\s+me)\b",
+        r"^(hello|hi|hey|test|testing)\b.*\?$",
+    ]
+    return any(re.search(pat, t_clean) for pat in patterns)
 
 
 async def analyze(
@@ -75,7 +129,7 @@ async def analyze(
     if not text_components:
         return CategoryResult(score=0.0, risk_factors=[], analyzed=False)
 
-    combined_text = " ".join(text_components)
+    combined_text = normalize_evasion_text(" ".join(text_components))
 
     # 2. Retrieve cached model artifacts
     vectorizer, model = get_job_content_model()
@@ -112,12 +166,17 @@ async def analyze(
         )
         has_context_keywords = any(kw in combined_text.lower() for kw in SCAM_OR_JOB_KEYWORDS)
         is_gibberish = is_gibberish_text(combined_text)
+        is_conversational = is_conversational_query(combined_text)
         is_sparse = len(words) < 12 and not has_context_keywords
 
         if is_gibberish:
             # Unparseable/gibberish input lacks coherent job semantics -> elevate to moderate risk
             fraud_prob = 0.52
             score = 52.0
+        elif is_conversational:
+            # Conversational question or prompt rather than job posting -> neutral calibrated score
+            fraud_prob = 0.20
+            score = 20.0
         elif is_sparse:
             # Short generic strings lacking scam keywords
             fraud_prob = min(fraud_prob, 0.25 + (len(words) * 0.015))
@@ -166,6 +225,20 @@ async def analyze(
                 ),
                 source="linguistic_coherence_evaluator",
                 confidence=0.75,
+            )
+        )
+    elif is_conversational:
+        risk_factors.append(
+            RiskFactor(
+                category=RiskCategory.JOB_CONTENT,
+                severity=Severity.LOW,
+                description="Conversational prompt or question submitted instead of job listing content.",
+                evidence=(
+                    f"The submitted text ('{combined_text[:50]}...') appears to be an inquiry rather than a job description "
+                    "or recruiter communication. Please paste the actual job posting details for full risk analysis."
+                ),
+                source="content_relevance_evaluator",
+                confidence=0.30,
             )
         )
     elif is_sparse:

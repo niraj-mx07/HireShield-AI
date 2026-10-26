@@ -182,10 +182,19 @@ async def analyze(
 
     cmp_norm = (company_name or "").strip().lower()
     matched_entry = None
-    if cmp_norm:
+    if cmp_norm and len(cmp_norm) >= 2:
         for key, data in VERIFIED_COMPANIES.items():
             name_clean = data["name"].lower()
-            if key in cmp_norm or cmp_norm in name_clean or (len(cmp_norm) >= 3 and cmp_norm in name_clean):
+            # 1. Exact match with key or full registered name
+            if cmp_norm == key or cmp_norm == name_clean:
+                matched_entry = data
+                break
+            # 2. Key is present as a standalone word in company_name (e.g. "Google LLC" matches "google")
+            if re.search(r"\b" + re.escape(key) + r"\b", cmp_norm):
+                matched_entry = data
+                break
+            # 3. Prominent word of the company name entered as whole word (e.g. "Infosys" in "Infosys Limited")
+            if len(cmp_norm) >= 4 and re.search(r"\b" + re.escape(cmp_norm) + r"\b", name_clean):
                 matched_entry = data
                 break
 
@@ -264,7 +273,7 @@ async def analyze(
         # Unrecognized company
         if has_cmp:
             from app.analyzers.job_content import is_gibberish_text
-            if is_gibberish_text(company_name):
+            if is_gibberish_text(company_name) or len(cmp_norm) <= 2 or re.match(r"^[^a-zA-Z0-9]+$", cmp_norm):
                 base_score = 52.0
                 risk_factors.append(
                     RiskFactor(

@@ -1,0 +1,21 @@
+# Git
+.git
+.gitignore
+
+# Python caches & virtual environments
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+venv/
+.env
+
+# Large ML raw and processed datasets (training only, not needed for live inference)
+ml/data/raw/*.csv
+ml/data/processed/*.csv
+ml/data/processed/
+
+# Frontend builds
+frontend/node_modules/
+frontend/dist/

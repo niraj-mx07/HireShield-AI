@@ -127,11 +127,38 @@ async def analyze(
     email_domain = ""
     if has_email:
         email = recruiter_email.strip().lower()
-        if "@" in email:
+        if "@" in email and "." in email.split("@")[-1]:
             email_domain = email.split("@")[-1].strip()
+        else:
+            base_score += 45.0
+            risk_factors.append(
+                RiskFactor(
+                    category=RiskCategory.RECRUITER_VERIFICATION,
+                    severity=Severity.MEDIUM,
+                    description=f"Invalid recruiter email address format ('{recruiter_email[:35]}').",
+                    evidence="Recruiter email does not follow standard username@domain.tld formatting.",
+                    source="email_syntax_validator",
+                    confidence=0.88,
+                )
+            )
+
+    if has_name:
+        from app.analyzers.job_content import is_gibberish_text
+        if is_gibberish_text(recruiter_name) or len(recruiter_name.strip()) <= 2:
+            base_score += 30.0
+            risk_factors.append(
+                RiskFactor(
+                    category=RiskCategory.RECRUITER_VERIFICATION,
+                    severity=Severity.LOW,
+                    description=f"Recruiter name appears to be random or invalid text ('{recruiter_name[:30]}').",
+                    evidence="Recruiter name contains unparseable character sequences with no authentic contact identity.",
+                    source="recruiter_identity_validator",
+                    confidence=0.75,
+                )
+            )
 
     cmp_norm = (company_name or "").strip().lower()
-    is_major_enterprise = any(ent in cmp_norm for ent in KNOWN_ENTERPRISES)
+    is_major_enterprise = any(re.search(r"\b" + re.escape(ent) + r"\b", cmp_norm) for ent in KNOWN_ENTERPRISES) if cmp_norm else False
 
     # 1. Disposable / Temporary email domain check
     if email_domain in DISPOSABLE_EMAIL_DOMAINS:

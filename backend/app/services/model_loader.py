@@ -8,15 +8,14 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
-from typing import Any, Optional, Tuple
-
+import os
 import sys
 import joblib
 
-# Ensure repo root is in sys.path so 'ml' package can be imported when unpickling
-repo_root = Path(__file__).resolve().parents[3]
-if str(repo_root) not in sys.path and (repo_root / "ml").exists():
-    sys.path.insert(0, str(repo_root))
+# Ensure repo root or container /app is in sys.path so 'ml' package can be imported when unpickling
+for parent in (Path(__file__).resolve().parents[2], Path(__file__).resolve().parents[3]):
+    if (parent / "ml").exists() and str(parent) not in sys.path:
+        sys.path.insert(0, str(parent))
 
 try:
     from ml.training.model_wrapper import BoostedModelWrapper
@@ -36,24 +35,37 @@ _loaded: bool = False
 
 
 def _find_artifacts_dir() -> Path:
-    """Locate the ml/artifacts directory relative to repo structure or backend."""
-    # Try 1: relative from backend/app/services/ (3 levels up -> repo root -> ml/artifacts)
-    repo_root = Path(__file__).resolve().parents[3]
-    candidate = repo_root / "ml" / "artifacts"
-    if candidate.exists():
-        return candidate
+    """Locate the ml/artifacts directory relative to repo structure, container, or backend."""
+    # Check environment override
+    env_dir = os.getenv("ML_ARTIFACTS_DIR")
+    if env_dir:
+        p = Path(env_dir).resolve()
+        if p.exists():
+            return p
 
-    # Try 2: relative to current working directory
+    # Try 1: Container / app root (/app/ml/artifacts)
+    app_root = Path(__file__).resolve().parents[2]
+    candidate_app = app_root / "ml" / "artifacts"
+    if candidate_app.exists():
+        return candidate_app
+
+    # Try 2: Standalone local repo (3 levels up -> repo root -> ml/artifacts)
+    repo_root = Path(__file__).resolve().parents[3]
+    candidate_repo = repo_root / "ml" / "artifacts"
+    if candidate_repo.exists():
+        return candidate_repo
+
+    # Try 3: relative to current working directory
     cwd_candidate = Path("ml/artifacts").resolve()
     if cwd_candidate.exists():
         return cwd_candidate
 
-    # Try 3: relative to parent of cwd
+    # Try 4: relative to parent of cwd
     parent_candidate = Path("../ml/artifacts").resolve()
     if parent_candidate.exists():
         return parent_candidate
 
-    return candidate
+    return candidate_repo
 
 
 def load_job_content_model() -> Tuple[Any | None, Any | None]:
