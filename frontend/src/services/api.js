@@ -5,7 +5,12 @@
  * Automatically adapts to VITE_API_BASE_URL for production deployment (Render, Vercel, Railway).
  */
 
-const API_BASE_URL = (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_API_BASE_URL) || 'http://127.0.0.1:8000';
+const PROD_BACKEND_URL = 'https://hireshield-api-x1yt.onrender.com';
+const API_BASE_URL =
+  (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_API_BASE_URL) ||
+  (typeof window !== 'undefined' && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1'
+    ? PROD_BACKEND_URL
+    : 'http://127.0.0.1:8000');
 
 /**
  * Submit an assessment request with JSON body.
