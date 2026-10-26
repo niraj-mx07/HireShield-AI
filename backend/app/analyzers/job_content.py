@@ -67,22 +67,31 @@ def is_gibberish_text(text: str) -> bool:
     KEYBOARD_MASH_SUBSTRINGS = (
         "asdf", "qwerty", "zxcv", "hjkl", "qwer", "dfgh", "zxcvb",
         "poiuy", "lkjhg", "mnbv", "1234", "wasd", "rfv", "tgb", "yuiop",
-        "ghjkl", "sdfg", "xcvb", "erty", "rtyu", "tyui",
+        "ghjkl", "sdfg", "xcvb", "erty", "rtyu", "tyui", "asd", "asv",
+        "vsd", "sdv", "zxc", "qwe", "jkl", "hjk", "dfg", "fgh",
     )
+    LEGIT_EXCLUSIONS = {
+        "has", "was", "ask", "task", "past", "fast", "last", "east", "west",
+        "best", "rest", "test", "cost", "post", "developer", "engineer",
+        "manager", "associate", "assistant",
+    }
+
     gibberish_words = 0
     for w in words:
         w_lower = w.lower()
+        if w_lower in LEGIT_EXCLUSIONS:
+            continue
         is_w_gib = False
-        if any(km in w_lower for km in KEYBOARD_MASH_SUBSTRINGS) and len(w_lower) >= 4:
+        if any(km in w_lower for km in KEYBOARD_MASH_SUBSTRINGS) and len(w_lower) >= 3:
             is_w_gib = True
-        elif len(w_lower) == 3 and w_lower in ("asd", "qwe", "zxc", "jkl", "hjk"):
-            is_w_gib = True
-        elif len(w_lower) >= 6:
+        elif len(w_lower) >= 5:
             vowels = sum(1 for c in w_lower if c in "aeiouy")
             vowel_ratio = vowels / len(w_lower)
-            if vowel_ratio < 0.12 or vowel_ratio > 0.88:
+            if vowel_ratio < 0.18 or vowel_ratio > 0.85:
                 is_w_gib = True
-            elif re.search(r"[^aeiouy]{6,}", w_lower):
+            elif re.search(r"[^aeiouy]{5,}", w_lower):
+                is_w_gib = True
+            elif len(w_lower) >= 7 and (len(set(w_lower)) / len(w_lower)) <= 0.45:
                 is_w_gib = True
             elif re.search(r"(.)\1{2,}", w_lower):
                 is_w_gib = True
