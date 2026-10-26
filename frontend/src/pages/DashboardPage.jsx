@@ -85,6 +85,31 @@ export const DashboardPage = () => {
 
   const chartData = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((d) => dayBuckets[d]);
 
+  const CustomTooltip = ({ active, payload, label }) => {
+    if (active && payload && payload.length) {
+      return (
+        <div className="bg-surface p-3 rounded-2xl shadow-floating border border-ink/10 text-xs space-y-1.5 min-w-[140px]">
+          <p className="font-semibold text-ink text-xs border-b border-ink/5 pb-1">{label}</p>
+          {payload.map((entry, index) => (
+            <div key={`item-${index}`} className="flex items-center justify-between gap-3 text-[11px]">
+              <span className="flex items-center gap-1.5 text-ink-muted">
+                <span
+                  className="w-2 h-2 rounded-full"
+                  style={{ backgroundColor: entry.color }}
+                />
+                {entry.name}:
+              </span>
+              <span className="font-bold font-mono" style={{ color: entry.color }}>
+                {entry.value}
+              </span>
+            </div>
+          ))}
+        </div>
+      );
+    }
+    return null;
+  };
+
   const handleRowClick = (item) => {
     loadReport(item.payload);
     navigate('/analyze/result');
@@ -176,12 +201,12 @@ export const DashboardPage = () => {
                 <XAxis dataKey="day" axisLine={false} tickLine={false} tick={{ fill: '#64748B', fontSize: 12 }} />
                 <YAxis axisLine={false} tickLine={false} tick={{ fill: '#64748B', fontSize: 12 }} allowDecimals={false} />
                 <Tooltip
-                  cursor={{ fill: '#F1F5F9', opacity: 0.5 }}
-                  contentStyle={{ backgroundColor: '#0F172A', borderRadius: '12px', border: 'none', color: '#FFF', fontSize: '12px' }}
+                  cursor={{ fill: 'rgba(0, 62, 28, 0.04)', radius: 8 }}
+                  content={<CustomTooltip />}
                 />
-                <Legend iconType="circle" wrapperStyle={{ paddingTop: '10px', fontSize: '12px' }} />
-                <Bar dataKey="highRisk" name="High Risk Scams" fill="#EF4444" radius={[6, 6, 0, 0]} />
-                <Bar dataKey="safe" name="Safe / Verified" fill="#22C55E" radius={[6, 6, 0, 0]} />
+                <Legend iconType="circle" wrapperStyle={{ paddingTop: '12px', fontSize: '11px', color: '#414941' }} />
+                <Bar dataKey="highRisk" name="High Risk Scams" fill="#ba1a1a" radius={[6, 6, 0, 0]} />
+                <Bar dataKey="safe" name="Safe / Verified" fill="#1e5631" radius={[6, 6, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </div>
