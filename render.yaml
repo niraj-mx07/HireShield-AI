@@ -25,8 +25,9 @@ services:
   - type: web
     name: hireshield-web
     runtime: static
-    buildCommand: npm --prefix frontend install && npm --prefix frontend run build
-    staticPublishPath: frontend/dist
+    rootDir: frontend
+    buildCommand: npm install --include=dev && npm run build
+    staticPublishPath: dist
     autoDeploy: true
     routes:
       - type: rewrite
