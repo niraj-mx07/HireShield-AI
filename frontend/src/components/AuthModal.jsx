@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X, ShieldCheck, Mail, Lock, User, ArrowRight, CheckCircle2, FileText, History, BarChart3, Loader2 } from 'lucide-react';
+import { X, ShieldCheck, Mail, Lock, User, ArrowRight, CheckCircle2, FileText, History, BarChart3, Loader2, Eye, EyeOff } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
 export const AuthModal = () => {
@@ -8,6 +8,7 @@ export const AuthModal = () => {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -25,22 +26,31 @@ export const AuthModal = () => {
     e.preventDefault();
     setError('');
 
-    if (!email) {
+    const cleanEmail = email.trim().toLowerCase();
+    const cleanName = name.trim();
+
+    if (!cleanEmail) {
       setError('Please enter your email address.');
       return;
     }
 
-    if (mode === 'signup' && !name) {
-      setError('Please enter your name.');
-      return;
+    if (mode === 'signup') {
+      if (!cleanName) {
+        setError('Please enter your name.');
+        return;
+      }
+      if (!password || password.length < 6) {
+        setError('Password must be at least 6 characters long.');
+        return;
+      }
     }
 
     setLoading(true);
     try {
       if (mode === 'signup') {
-        await signup(name, email, password);
+        await signup(cleanName, cleanEmail, password);
       } else {
-        await login(email, password);
+        await login(cleanEmail, password);
       }
     } catch (err) {
       setError(err?.message || 'Authentication error. Please try again.');
@@ -154,18 +164,34 @@ export const AuthModal = () => {
             </div>
 
             <div className="space-y-1">
-              <label className="text-[11px] font-semibold text-ink-muted uppercase tracking-wider">
-                Password
-              </label>
+              <div className="flex items-center justify-between">
+                <label className="text-[11px] font-semibold text-ink-muted uppercase tracking-wider">
+                  Password
+                </label>
+                {mode === 'signup' && (
+                  <span className="text-[10px] text-ink-subtle">
+                    Min 6 characters
+                  </span>
+                )}
+              </div>
               <div className="relative">
                 <Lock className="w-4 h-4 text-ink-subtle absolute left-3.5 top-3" />
                 <input
-                  type="password"
+                  type={showPassword ? 'text' : 'password'}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  placeholder="••••••••"
-                  className="w-full pl-10 pr-4 py-2.5 text-sm bg-canvas border border-ink/10 rounded-xl text-ink placeholder-ink-subtle focus:outline-none focus:border-primary"
+                  placeholder={mode === 'signup' ? 'At least 6 characters' : '••••••••'}
+                  className="w-full pl-10 pr-10 py-2.5 text-sm bg-canvas border border-ink/10 rounded-xl text-ink placeholder-ink-subtle focus:outline-none focus:border-primary"
                 />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3 top-2.5 p-0.5 text-ink-subtle hover:text-ink transition-colors"
+                  tabIndex={-1}
+                  aria-label={showPassword ? 'Hide password' : 'Show password'}
+                >
+                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
               </div>
             </div>
 

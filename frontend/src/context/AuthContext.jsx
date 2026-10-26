@@ -470,6 +470,12 @@ export const AuthProvider = ({ children }) => {
   const logout = () => {
     setUser(null);
     setUserHistory([]);
+    setActiveReport(mockAnalysisHighRisk);
+    try {
+      localStorage.removeItem(STORAGE_ACTIVE_REPORT_KEY);
+    } catch (e) {
+      console.error(e);
+    }
     setDbSyncStatus('synced');
   };
 

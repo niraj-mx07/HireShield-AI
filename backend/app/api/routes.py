@@ -388,8 +388,8 @@ async def login_user(req: UserLoginRequest) -> UserProfileResponse:
     if existing:
         # Enforce password authentication if account is password-protected
         stored_hash = existing.get("password_hash")
-        if stored_hash and req.password:
-            if not verify_password(req.password, stored_hash):
+        if stored_hash:
+            if not req.password or not verify_password(req.password, stored_hash):
                 raise HTTPException(
                     status_code=status.HTTP_401_UNAUTHORIZED,
                     detail="Invalid credentials. Please verify your password.",

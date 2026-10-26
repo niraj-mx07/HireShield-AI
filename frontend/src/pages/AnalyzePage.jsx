@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Link2, FileText, Upload, UserCheck, Mail, Sparkles, ArrowRight, ShieldCheck, CheckCircle2, AlertCircle } from 'lucide-react';
+import { Link2, FileText, Upload, UserCheck, Mail, Sparkles, ArrowRight, ShieldCheck, CheckCircle2, AlertCircle, RotateCcw } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import {
   mockAnalysisHighRisk,
@@ -30,6 +30,30 @@ export const AnalyzePage = () => {
   const [validationError, setValidationError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  const hasAnyInput = !!(
+    urlInput.trim() ||
+    descInput.trim() ||
+    fileName ||
+    companyName.trim() ||
+    recruiterEmail.trim() ||
+    recruiterName.trim() ||
+    recruiterPhone.trim() ||
+    messageInput.trim()
+  );
+
+  const handleClearAll = () => {
+    setUrlInput('');
+    setDescInput('');
+    setFileName('');
+    setFileObject(null);
+    setCompanyName('');
+    setRecruiterEmail('');
+    setRecruiterName('');
+    setRecruiterPhone('');
+    setMessageInput('');
+    setValidationError('');
+  };
+
   const handleFileChange = (e) => {
     const file = e.target.files?.[0];
     if (file) {
@@ -52,8 +76,17 @@ export const AnalyzePage = () => {
     const trimmedRecruiterPhone = recruiterPhone.trim();
 
     // Check if at least one input across all tabs is provided
-    if (!trimmedUrl && !trimmedDesc && !trimmedMsg && !fileObject && !trimmedCompany && !trimmedRecruiterEmail) {
-      setValidationError('Please provide a Job URL, Description text, Company Name, Email/Message, or upload a Document.');
+    if (
+      !trimmedUrl &&
+      !trimmedDesc &&
+      !trimmedMsg &&
+      !fileObject &&
+      !trimmedCompany &&
+      !trimmedRecruiterEmail &&
+      !trimmedRecruiterName &&
+      !trimmedRecruiterPhone
+    ) {
+      setValidationError('Please provide a Job URL, Description text, Company Name, Recruiter Email/Phone, or upload a Document.');
       return;
     }
 
@@ -100,7 +133,31 @@ export const AnalyzePage = () => {
       });
 
       loadReport(formatted);
+      setIsSubmitting(false);
+      navigate('/analyze/processing');
     } catch (err) {
+      // If validation error from backend (422), show it cleanly without navigating away
+      const errMsg = err?.message || '';
+      if (errMsg.includes('422')) {
+        let cleanErr = 'Invalid input parameters. Please check your entered values.';
+        try {
+          const jsonStart = errMsg.indexOf('{');
+          if (jsonStart !== -1) {
+            const parsed = JSON.parse(errMsg.slice(jsonStart));
+            if (parsed.detail && Array.isArray(parsed.detail)) {
+              cleanErr = parsed.detail.map((d) => d.msg || d.loc?.join(' ')).join('; ');
+            } else if (parsed.detail) {
+              cleanErr = String(parsed.detail);
+            }
+          }
+        } catch {
+          // fallback to raw message
+        }
+        setValidationError(cleanErr);
+        setIsSubmitting(false);
+        return;
+      }
+
       console.warn('Backend live API offline/error, falling back to local evaluation:', err);
       // Fallback matching
       const combined = (trimmedCompany + ' ' + trimmedUrl + ' ' + trimmedDesc + ' ' + trimmedMsg).toLowerCase();
@@ -125,9 +182,9 @@ export const AnalyzePage = () => {
         recruiterEmail: trimmedRecruiterEmail || baseMock.recruiterEmail,
         recruiterName: trimmedRecruiterName || baseMock.recruiterName,
         scanDate: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) + ' • ' + new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
+        isOfflineDemo: true,
       };
       loadReport(localizedMock);
-    } finally {
       setIsSubmitting(false);
       navigate('/analyze/processing');
     }
@@ -387,14 +444,27 @@ export const AnalyzePage = () => {
               <span>Multi-layer AI verification protocol active (Free • No sign-in required)</span>
             </div>
 
-            <button
-              type="submit"
-              disabled={isSubmitting}
-              className="w-full sm:w-auto px-8 py-3.5 rounded-full bg-primary text-surface text-xs font-bold shadow-subtle hover:bg-primary-container transition-all flex items-center justify-center gap-2 disabled:opacity-50"
-            >
-              <span>{isSubmitting ? 'Scanning...' : 'Run HireShield Scan'}</span>
-              <ArrowRight className="w-4 h-4" />
-            </button>
+            <div className="flex items-center gap-3 w-full sm:w-auto">
+              {hasAnyInput && (
+                <button
+                  type="button"
+                  onClick={handleClearAll}
+                  className="w-full sm:w-auto px-5 py-3 rounded-full bg-surface border border-ink/10 text-ink-muted hover:text-ink hover:bg-surface-2 text-xs font-semibold transition-all flex items-center justify-center gap-1.5"
+                >
+                  <RotateCcw className="w-3.5 h-3.5" />
+                  <span>Clear All</span>
+                </button>
+              )}
+
+              <button
+                type="submit"
+                disabled={isSubmitting}
+                className="w-full sm:w-auto px-8 py-3.5 rounded-full bg-primary text-surface text-xs font-bold shadow-subtle hover:bg-primary-container transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+              >
+                <span>{isSubmitting ? 'Scanning...' : 'Run HireShield Scan'}</span>
+                <ArrowRight className="w-4 h-4" />
+              </button>
+            </div>
           </div>
 
         </form>

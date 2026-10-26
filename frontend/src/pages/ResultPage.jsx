@@ -51,8 +51,9 @@ export const ResultPage = () => {
 
         <div className="flex flex-wrap items-center gap-3">
           <button
-            onClick={() => navigate('/analyze/processing')}
+            onClick={() => navigate('/analyze')}
             className="px-4 py-2 rounded-full bg-surface border border-ink/10 text-xs font-semibold text-ink-muted hover:text-ink hover:bg-surface-2 transition-all flex items-center gap-1.5"
+            title="Modify inputs and re-run analysis"
           >
             <RefreshCw className="w-3.5 h-3.5" />
             <span>Re-run Scan</span>
@@ -77,6 +78,16 @@ export const ResultPage = () => {
           </Link>
         </div>
       </div>
+
+      {/* Offline Demo Warning Notice if backend fallback was engaged */}
+      {report?.isOfflineDemo && (
+        <div className="bg-amber-500/10 border border-amber-500/30 text-amber-800 dark:text-amber-300 px-6 py-3.5 rounded-2xl text-xs font-semibold flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <AlertTriangle className="w-4 h-4 text-amber-600 flex-shrink-0" />
+            <span><strong>Offline Preview Mode:</strong> Assessment engine completed with baseline heuristic signals. Connect to FastAPI backend for live external WHOIS and ML verification.</span>
+          </div>
+        </div>
+      )}
 
       {/* PDF Download Toast Notification */}
       {downloadToast && (

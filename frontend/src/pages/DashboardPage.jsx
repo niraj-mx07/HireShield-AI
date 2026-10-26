@@ -48,16 +48,42 @@ export const DashboardPage = () => {
   const counts = getScanCounts(historyList);
   const recentThree = historyList.slice(0, 3);
 
-  // Dynamic Chart Data based on user scans
-  const chartData = [
-    { day: 'Mon', highRisk: 0, safe: 0 },
-    { day: 'Tue', highRisk: 0, safe: 0 },
-    { day: 'Wed', highRisk: 0, safe: 0 },
-    { day: 'Thu', highRisk: 0, safe: 0 },
-    { day: 'Fri', highRisk: 0, safe: 0 },
-    { day: 'Sat', highRisk: counts.highRisk, safe: counts.verifiedSafe },
-    { day: 'Sun', highRisk: 0, safe: counts.moderate },
-  ];
+  // Dynamic Chart Data calculated from actual user scan dates
+  const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+  const dayBuckets = {
+    Mon: { day: 'Mon', highRisk: 0, safe: 0 },
+    Tue: { day: 'Tue', highRisk: 0, safe: 0 },
+    Wed: { day: 'Wed', highRisk: 0, safe: 0 },
+    Thu: { day: 'Thu', highRisk: 0, safe: 0 },
+    Fri: { day: 'Fri', highRisk: 0, safe: 0 },
+    Sat: { day: 'Sat', highRisk: 0, safe: 0 },
+    Sun: { day: 'Sun', highRisk: 0, safe: 0 },
+  };
+
+  historyList.forEach((item) => {
+    let dayName = null;
+    try {
+      const dateStr = item.date || item.created_at || item.scanDate;
+      if (dateStr) {
+        const d = new Date(dateStr);
+        if (!isNaN(d.getTime())) {
+          dayName = days[d.getDay()];
+        }
+      }
+    } catch {
+      // ignore parse error
+    }
+    const targetDay = dayName || 'Sat';
+    if (dayBuckets[targetDay]) {
+      if (item.riskLevel === 'high') {
+        dayBuckets[targetDay].highRisk += 1;
+      } else {
+        dayBuckets[targetDay].safe += 1;
+      }
+    }
+  });
+
+  const chartData = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((d) => dayBuckets[d]);
 
   const handleRowClick = (item) => {
     loadReport(item.payload);
