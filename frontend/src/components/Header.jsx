@@ -30,7 +30,9 @@ export const Header = () => {
       user?.avatar &&
       typeof user.avatar === 'string' &&
       (user.avatar.startsWith('http://') || user.avatar.startsWith('https://'));
-    const initial = user?.name ? user.name.charAt(0).toUpperCase() : (user?.avatar || 'U');
+    const initial = user?.name
+      ? user.name.charAt(0).toUpperCase()
+      : (user?.email ? user.email.charAt(0).toUpperCase() : 'U');
 
     return (
       <div className={`${size} rounded-full bg-primary text-surface flex items-center justify-center ${textSize} font-bold overflow-hidden flex-shrink-0 shadow-sm`}>
