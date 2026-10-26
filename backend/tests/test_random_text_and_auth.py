@@ -29,12 +29,11 @@ async def db_lifecycle():
 
 @pytest.mark.asyncio
 async def test_gibberish_job_content():
-    """Verify that keyboard mashing produces an unparseable warning instead of arbitrary scam verdicts."""
+    """Verify that keyboard mashing produces a high-risk non-genuine listing flag."""
     res = await job_content.analyze(description="asdfghjkl qwertyuiop zxcvbnm 123456")
     assert res.analyzed is True
-    assert any("unverifiable or nonsensical" in rf.description.lower() for rf in res.risk_factors)
-    # Calibrated to moderate/neutral
-    assert 40.0 <= res.score <= 65.0
+    assert any("unintelligible" in rf.description.lower() or "keyboard smash" in rf.description.lower() for rf in res.risk_factors)
+    assert res.score >= 70.0
 
 
 @pytest.mark.asyncio

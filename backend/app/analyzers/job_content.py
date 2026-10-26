@@ -170,9 +170,9 @@ async def analyze(
         is_sparse = len(words) < 12 and not has_context_keywords
 
         if is_gibberish:
-            # Unparseable/gibberish input lacks coherent job semantics -> elevate to moderate risk
-            fraud_prob = 0.52
-            score = 52.0
+            # Unparseable / random keyboard mash lacks genuine job semantics -> high risk non-genuine listing
+            fraud_prob = 0.82
+            score = 82.0
         elif is_conversational:
             # Conversational question or prompt rather than job posting -> neutral calibrated score
             fraud_prob = 0.20
@@ -217,14 +217,14 @@ async def analyze(
         risk_factors.append(
             RiskFactor(
                 category=RiskCategory.JOB_CONTENT,
-                severity=Severity.MEDIUM,
-                description="Unverifiable or nonsensical text detected.",
+                severity=Severity.HIGH,
+                description="Unintelligible / random keyboard smash detected (Non-genuine job listing)",
                 evidence=(
                     f"Provided text contains unparseable character sequences ('{combined_text[:40]}...') "
-                    "with no coherent natural language or enterprise job description terms. Cannot verify legitimacy."
+                    "with zero coherent job requirements, responsibilities, or genuine employment vocabulary. Non-genuine listing or spam."
                 ),
                 source="linguistic_coherence_evaluator",
-                confidence=0.75,
+                confidence=0.92,
             )
         )
     elif is_conversational:

@@ -61,6 +61,10 @@ async def analyze(
     full_text = " ".join(corpus_parts)
     text_lower = full_text.lower()
 
+    from app.analyzers.job_content import is_gibberish_text
+    if is_gibberish_text(full_text):
+        return CategoryResult(score=0.0, risk_factors=[], analyzed=False)
+
     risk_factors: list[RiskFactor] = []
     base_score = 0.0
 
