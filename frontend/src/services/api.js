@@ -115,6 +115,31 @@ export async function apiLogin(credentials) {
   return response.json();
 }
 
+export async function apiGoogleAuth(payload) {
+  const url = `${API_BASE_URL}/api/v1/auth/google`;
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    let errMessage = `Google Auth Error ${response.status}`;
+    try {
+      const errJson = await response.json();
+      if (errJson && errJson.detail) {
+        errMessage = errJson.detail;
+      }
+    } catch {
+      const errText = await response.text().catch(() => '');
+      if (errText) errMessage = errText;
+    }
+    throw new Error(errMessage);
+  }
+
+  return response.json();
+}
+
 export async function apiGetUser(userEmailOrId) {
   const url = `${API_BASE_URL}/api/v1/auth/user/${encodeURIComponent(userEmailOrId)}`;
   const response = await fetch(url);

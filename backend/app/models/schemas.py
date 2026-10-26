@@ -224,6 +224,11 @@ class UserLoginRequest(BaseModel):
     name: Optional[str] = Field(None, description="Optional name if auto-creating demo account")
 
 
+class UserGoogleAuthRequest(BaseModel):
+    """Payload for Google OAuth One-Tap / token sign-in."""
+    credential: str = Field(..., description="Google ID Token JWT")
+
+
 class UserProfileResponse(BaseModel):
     """Sanitized user account profile returned by auth endpoints."""
     id: str

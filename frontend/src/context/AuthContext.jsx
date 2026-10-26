@@ -3,6 +3,7 @@ import { mockAnalysisHighRisk } from '../data/mockData';
 import {
   apiSignup,
   apiLogin,
+  apiGoogleAuth,
   apiGetUser,
   apiGetUserHistory,
   apiSaveUserHistory,
@@ -465,6 +466,33 @@ export const AuthProvider = ({ children }) => {
   };
 
   /**
+   * Authenticate with Google OAuth One-Tap credential
+   */
+  const loginWithGoogle = async (credential) => {
+    try {
+      setDbSyncStatus('syncing');
+      const remoteUser = await apiGoogleAuth({ credential });
+      if (remoteUser && remoteUser.email) {
+        setUser(remoteUser);
+        setIsAuthModalOpen(false);
+
+        // Sync history from MongoDB
+        syncWithMongoDB(remoteUser);
+
+        if (typeof authRedirectAction === 'function') {
+          authRedirectAction();
+          setAuthRedirectAction(null);
+        }
+        return { success: true, user: remoteUser };
+      }
+    } catch (err) {
+      console.warn('Backend Google Auth error:', err);
+      setDbSyncStatus('offline');
+      throw err;
+    }
+  };
+
+  /**
    * Log out user
    */
   const logout = () => {
@@ -517,6 +545,7 @@ export const AuthProvider = ({ children }) => {
         clearHistory,
         login,
         signup,
+        loginWithGoogle,
         logout,
         activeReport,
         setActiveReport,

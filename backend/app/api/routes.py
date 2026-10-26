@@ -36,6 +36,7 @@ from app.models.schemas import (
     ScamReportResponse,
     UserRegisterRequest,
     UserLoginRequest,
+    UserGoogleAuthRequest,
     UserProfileResponse,
     UserProfileUpdateRequest,
     UserHistoryItemPayload,
@@ -435,6 +436,110 @@ async def login_user(req: UserLoginRequest) -> UserProfileResponse:
         stats = await _compute_user_stats(db, clean_email)
     except Exception as exc:
         logger.warning("MongoDB login user auto-provision error: %s", exc)
+        stats = {"total_scans": 0, "high_risk_scans": 0, "safe_scans": 0, "moderate_scans": 0}
+
+    token = create_access_token({"sub": user_id, "email": clean_email, "role": role})
+    return UserProfileResponse(
+        id=user_id,
+        name=name,
+        email=clean_email,
+        role=role,
+        avatar=avatar,
+        created_at=now_str,
+        updated_at=now_str,
+        access_token=token,
+        token_type="bearer",
+        **stats,
+    )
+
+
+@router.post(
+    "/auth/google",
+    response_model=UserProfileResponse,
+    summary="Authenticate or register user with Google OAuth One-Tap",
+)
+async def google_auth_user(req: UserGoogleAuthRequest) -> UserProfileResponse:
+    """Validate Google ID Token credential and authenticate / register user."""
+    import json
+    import urllib.request
+    from urllib.error import HTTPError, URLError
+
+    credential = req.credential.strip()
+    if not credential:
+        raise HTTPException(status_code=400, detail="Missing Google credential token.")
+
+    # 1. Validate Google ID token directly with Google OAuth2 tokeninfo endpoint
+    tokeninfo_url = f"https://oauth2.googleapis.com/tokeninfo?id_token={credential}"
+    try:
+        req_obj = urllib.request.Request(tokeninfo_url, headers={"User-Agent": "HireShield-AI"})
+        with urllib.request.urlopen(req_obj, timeout=6.0) as resp:
+            data = json.loads(resp.read().decode())
+    except (HTTPError, URLError, Exception) as exc:
+        logger.warning("Google OAuth tokeninfo validation failed: %s", exc)
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Google token verification failed or expired.",
+        )
+
+    clean_email = data.get("email", "").strip().lower()
+    if not clean_email or not data.get("email_verified", True):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Valid verified email address required from Google account.",
+        )
+
+    db = get_database()
+    name = data.get("name") or clean_email.split("@")[0].title()
+    picture = data.get("picture")
+    avatar = picture or name[:1].upper()
+    now_str = datetime.now(timezone.utc).isoformat()
+
+    existing = await db.users.find_one({"email": clean_email})
+    if existing:
+        stats = await _compute_user_stats(db, clean_email)
+        user_id = existing.get("id", f"USR-{uuid.uuid4().hex[:6].upper()}")
+        role = existing.get("role", "Candidate / Job Seeker")
+        if picture and not existing.get("avatar_is_custom", False):
+            await db.users.update_one(
+                {"email": clean_email},
+                {"$set": {"avatar": picture, "updated_at": now_str}}
+            )
+            avatar = picture
+        else:
+            avatar = existing.get("avatar", avatar)
+
+        token = create_access_token({"sub": user_id, "email": clean_email, "role": role})
+        return UserProfileResponse(
+            id=user_id,
+            name=existing.get("name", name),
+            email=clean_email,
+            role=role,
+            avatar=avatar,
+            created_at=existing.get("created_at", now_str),
+            updated_at=now_str,
+            access_token=token,
+            token_type="bearer",
+            **stats,
+        )
+
+    user_id = f"USR-{uuid.uuid4().hex[:8].upper()}"
+    role = "Candidate / Job Seeker"
+    user_doc = {
+        "id": user_id,
+        "name": name,
+        "email": clean_email,
+        "role": role,
+        "avatar": avatar,
+        "provider": "google",
+        "created_at": now_str,
+        "updated_at": now_str,
+    }
+
+    try:
+        await db.users.insert_one(user_doc)
+        stats = await _compute_user_stats(db, clean_email)
+    except Exception as exc:
+        logger.warning("MongoDB Google user insert error: %s", exc)
         stats = {"total_scans": 0, "high_risk_scans": 0, "safe_scans": 0, "moderate_scans": 0}
 
     token = create_access_token({"sub": user_id, "email": clean_email, "role": role})
