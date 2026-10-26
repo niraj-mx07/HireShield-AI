@@ -339,7 +339,7 @@ export const AnalyzePage = () => {
                     type="button"
                     onClick={(e) => {
                       e.preventDefault();
-                      setFileName('Sample_Job_Offer_Letter.pdf');
+                      setFileName('Job_Offer_Letter.pdf');
                       setValidationError('');
                     }}
                     className="px-4 py-1.5 rounded-full bg-surface border border-ink/10 text-xs font-semibold text-ink-muted hover:text-ink"

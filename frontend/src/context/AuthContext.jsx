@@ -346,7 +346,10 @@ export const AuthProvider = ({ children }) => {
    * Log in user with MongoDB persistence
    */
   const login = async (email, password, name) => {
-    const enteredEmail = (email || 'candidate@hireshield.ai').trim();
+    const enteredEmail = (email || '').trim().toLowerCase();
+    if (!enteredEmail) {
+      throw new Error('Please enter your email address.');
+    }
     let displayName = name;
     if (!displayName) {
       const prefix = enteredEmail.split('@')[0].replace(/[._-]/g, ' ');
@@ -408,8 +411,11 @@ export const AuthProvider = ({ children }) => {
    * Register a brand new user in MongoDB
    */
   const signup = async (name, email, password) => {
-    const cleanName = (name || 'New Member').trim();
-    const cleanEmail = (email || 'user@hireshield.ai').trim();
+    const cleanName = (name || '').trim();
+    const cleanEmail = (email || '').trim().toLowerCase();
+    if (!cleanEmail) {
+      throw new Error('Please enter your email address.');
+    }
 
     let authUser = {
       id: `USR-${Date.now().toString().slice(-4)}`,

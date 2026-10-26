@@ -229,7 +229,7 @@ export const AuthModal = () => {
                     required
                     value={name}
                     onChange={(e) => setName(e.target.value)}
-                    placeholder="e.g. Alex Chen"
+                    placeholder="Enter your full name"
                     className="w-full pl-10 pr-4 py-2.5 text-sm bg-canvas border border-ink/10 rounded-xl text-ink placeholder-ink-subtle focus:outline-none focus:border-primary"
                   />
                 </div>
@@ -247,7 +247,7 @@ export const AuthModal = () => {
                   required
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  placeholder="student@university.edu or candidate@email.com"
+                  placeholder="Enter your email address"
                   className="w-full pl-10 pr-4 py-2.5 text-sm bg-canvas border border-ink/10 rounded-xl text-ink placeholder-ink-subtle focus:outline-none focus:border-primary"
                 />
               </div>
@@ -270,7 +270,7 @@ export const AuthModal = () => {
                   type={showPassword ? 'text' : 'password'}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  placeholder={mode === 'signup' ? 'At least 6 characters' : '••••••••'}
+                  placeholder={mode === 'signup' ? 'Create password (min 6 characters)' : 'Enter your password'}
                   className="w-full pl-10 pr-10 py-2.5 text-sm bg-canvas border border-ink/10 rounded-xl text-ink placeholder-ink-subtle focus:outline-none focus:border-primary"
                 />
                 <button

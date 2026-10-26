@@ -49,14 +49,14 @@ export const Footer = () => {
             </ul>
           </div>
 
-          {/* Col 4: Demo Disclaimer */}
+          {/* Col 4: Platform Security */}
           <div>
-            <h4 className="font-serif text-sm font-semibold text-ink mb-4">Project Demo Note</h4>
+            <h4 className="font-serif text-sm font-semibold text-ink mb-4">Security & Trust</h4>
             <p className="text-xs text-ink-muted leading-relaxed mb-3">
-              This is an interactive design demo for project presentation. Populated with realistic sample datasets.
+              Multi-layer verification engine validating job authentications, email headers, domains, and business registry records in real time.
             </p>
             <div className="inline-block px-3 py-1 rounded-full bg-secondary-container text-primary text-[11px] font-semibold">
-              Status: Interactive Prototype
+              System Status: Operational
             </div>
           </div>
         </div>
