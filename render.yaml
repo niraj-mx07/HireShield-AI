@@ -36,4 +36,6 @@ services:
     envVars:
       - key: VITE_API_BASE_URL
         value: https://hireshield-api-x1yt.onrender.com
+      - key: VITE_GOOGLE_CLIENT_ID
+        value: 673762437253-ck9la636bc3o7s97qia89r8rcct9o1di.apps.googleusercontent.com
 

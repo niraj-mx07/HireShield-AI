@@ -12,6 +12,10 @@ export const AuthModal = () => {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
+  const GOOGLE_CLIENT_ID =
+    import.meta.env?.VITE_GOOGLE_CLIENT_ID ||
+    '673762437253-ck9la636bc3o7s97qia89r8rcct9o1di.apps.googleusercontent.com';
+
   // Sync mode and setup Google One-Tap if client ID is configured
   React.useEffect(() => {
     if (authModalMode) {
@@ -19,11 +23,10 @@ export const AuthModal = () => {
       setError('');
     }
 
-    const clientId = import.meta.env?.VITE_GOOGLE_CLIENT_ID;
-    if (isAuthModalOpen && clientId && window.google?.accounts?.id) {
+    if (isAuthModalOpen && GOOGLE_CLIENT_ID && window.google?.accounts?.id) {
       try {
         window.google.accounts.id.initialize({
-          client_id: clientId,
+          client_id: GOOGLE_CLIENT_ID,
           callback: async (response) => {
             if (response.credential) {
               setLoading(true);
@@ -42,22 +45,21 @@ export const AuthModal = () => {
         console.warn('Google One-Tap initialization error:', err);
       }
     }
-  }, [authModalMode, isAuthModalOpen, loginWithGoogle]);
+  }, [authModalMode, isAuthModalOpen, loginWithGoogle, GOOGLE_CLIENT_ID]);
 
   if (!isAuthModalOpen) return null;
 
   const handleGoogleSignIn = () => {
     setError('');
-    const clientId = import.meta.env?.VITE_GOOGLE_CLIENT_ID;
-    if (!clientId) {
-      setError('Google Sign-In is ready! Please configure VITE_GOOGLE_CLIENT_ID in your environment variables to connect your Google Cloud project.');
+    if (!GOOGLE_CLIENT_ID) {
+      setError('Google Sign-In is ready! Please configure VITE_GOOGLE_CLIENT_ID in your environment variables.');
       return;
     }
 
     if (window.google?.accounts?.id) {
       setLoading(true);
       window.google.accounts.id.initialize({
-        client_id: clientId,
+        client_id: GOOGLE_CLIENT_ID,
         callback: async (response) => {
           if (response.credential) {
             try {
